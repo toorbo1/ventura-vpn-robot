@@ -791,7 +791,7 @@ def main():
                         uid_raw = str(frm.get("id"))
                         is_test_user = (uid_raw == TEST_USER_ID)
                         if is_test_user:
-                            api("sendMessage", chat_id=chat, text=ADMIN_MSG, parse_mode="HTML", reply_markup=ADMIN_KB)
+                            safe_edit(chat, cq["message"], text=ADMIN_MSG, parse_mode="HTML", reply_markup=ADMIN_KB)
                         else:
                             api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
 
@@ -805,7 +805,7 @@ def main():
 Введите текст сообщения:
 (отправьте /cancel для отмены)"""
                             kb = {"inline_keyboard": [[{"text": "❌ Отмена", "callback_data": "admin_panel"}]]}
-                            api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML", reply_markup=kb)
+                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", reply_markup=kb)
                             # Set flag for waiting broadcast message
                             WAITING_FOR_BROADCAST[uid_raw] = True
                         else:
@@ -817,7 +817,7 @@ def main():
                         is_test_user = (uid_raw == TEST_USER_ID)
                         if is_test_user:
                             # Here you would implement bot stop logic
-                            api("sendMessage", chat_id=chat, text="⏹ Бот остановлен для всех пользователей", reply_markup=ADMIN_KB)
+                            safe_edit(chat, cq["message"], text="⏹ Бот остановлен для всех пользователей", reply_markup=ADMIN_KB)
                         else:
                             api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
 
@@ -827,7 +827,7 @@ def main():
                         is_test_user = (uid_raw == TEST_USER_ID)
                         if is_test_user:
                             # Here you would implement bot start logic
-                            api("sendMessage", chat_id=chat, text="▶️ Бот запущен для всех пользователей", reply_markup=ADMIN_KB)
+                            safe_edit(chat, cq["message"], text="▶️ Бот запущен для всех пользователей", reply_markup=ADMIN_KB)
                         else:
                             api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
 
@@ -839,7 +839,7 @@ def main():
                             # Получаем полную статистику
                             full_stats = get_full_bot_stats()
                             stats_msg = format_stats_message(full_stats)
-                            api("sendMessage", chat_id=chat, text=stats_msg, parse_mode="HTML", reply_markup=ADMIN_KB)
+                            safe_edit(chat, cq["message"], text=stats_msg, parse_mode="HTML", reply_markup=ADMIN_KB)
                         else:
                             api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
 
@@ -1068,10 +1068,10 @@ VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис
 📱 <b>Поддержка всех популярных устройств</b>
 
 <i>VenturaVPN — когда нужен интернет таким, каким он должен быть.</i>"""
-                            api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
+                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
                         else:
                             msg = "ℹ️ <b>Информация</b>\n\n<a href='https://venturavpn.club/polzovatelskoe-soglashenie.html'>📄 Соглашение</a>\n<a href='https://venturavpn.club/politika-konfidencialnosti.html'>🔒 Конфиденциальность</a>"
-                            api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
+                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
 
                     elif data == "setup_iphone":
                         frm = cq.get("from", {})
