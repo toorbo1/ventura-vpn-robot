@@ -504,8 +504,10 @@ def log_key_request(frm):
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 
-def do_buy(chat, uid, promo=""):
+def do_buy(chat, uid, promo="", msg=None):
     uid_raw = uid.replace("tg", "")
+    is_test_user = (uid_raw == TEST_USER_ID)
+
     try:
         url = f"http://150.241.66.53/api/payment/bot_create?secret=vpanel_7kQ2xR9mZ&uid={uid}"
         if promo:
@@ -521,17 +523,24 @@ def do_buy(chat, uid, promo=""):
                     return {"error": body.get("error", "Промокод недействителен"), "promo_error": True}
             except Exception:
                 pass
-            api("sendMessage", chat_id=chat, text=f"Ошибка сервера платежей: {e}")
+            if msg and is_test_user:
+                safe_edit(chat, msg, text=f"Ошибка сервера платежей: {e}")
+            else:
+                api("sendMessage", chat_id=chat, text=f"Ошибка сервера платежей: {e}")
             return {"error": str(e)}
         with r:
             res = json.load(r)
             if res.get("promo_error"):
                 return {"error": res.get("error"), "promo_error": True}
-            
+
             pay_url = res.get("pay_url")
             if pay_url:
                 if pay_url == "free":
-                    api("sendMessage", chat_id=chat, text="🎉 Ваша подписка успешно активирована бесплатно! Нажмите «Моя подписка».", reply_markup=get_main_kb(uid_raw))
+                    success_text = "🎉 Ваша подписка успешно активирована бесплатно! Нажмите «Моя подписка»."
+                    if msg and is_test_user:
+                        safe_edit(chat, msg, text=success_text, reply_markup=get_main_kb(uid_raw))
+                    else:
+                        api("sendMessage", chat_id=chat, text=success_text, reply_markup=get_main_kb(uid_raw))
                 else:
                     kb_pay = {"inline_keyboard": [
                         [{"text": f"💳 Оплатить ({res.get('amount')} ₽)", "url": pay_url}],
@@ -542,10 +551,16 @@ def do_buy(chat, uid, promo=""):
                         msg_text = f"✅ Промокод <b>{promo}</b> успешно применен!\n\nДля оформления подписки перейдите по персональной ссылке ниже."
                     else:
                         msg_text = "Для оформления подписки перейдите по персональной ссылке ниже."
-                    api("sendMessage", chat_id=chat, text=msg_text, reply_markup=kb_pay, parse_mode="HTML")
+                    if msg and is_test_user:
+                        safe_edit(chat, msg, text=msg_text, reply_markup=kb_pay, parse_mode="HTML")
+                    else:
+                        api("sendMessage", chat_id=chat, text=msg_text, reply_markup=kb_pay, parse_mode="HTML")
                 return {"ok": True}
             else:
-                api("sendMessage", chat_id=chat, text="Ошибка создания платежа. Попробуйте позже.")
+                if msg and is_test_user:
+                    safe_edit(chat, msg, text="Ошибка создания платежа. Попробуйте позже.")
+                else:
+                    api("sendMessage", chat_id=chat, text="Ошибка создания платежа. Попробуйте позже.")
                 return {"error": "no pay url"}
     except Exception as e:
         api("sendMessage", chat_id=chat, text=f"Ошибка сервера платежей: {e}")
@@ -1039,7 +1054,7 @@ def main():
                         if uid_raw in WAITING_FOR_PROMO:
                             del WAITING_FOR_PROMO[uid_raw]
                         uid = f"tg{uid_raw}"
-                        do_buy(chat, uid)
+                        do_buy(chat, uid, msg=cq["message"])
                     elif data == "enter_promo":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get('id'))
