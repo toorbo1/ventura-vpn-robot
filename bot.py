@@ -30,9 +30,27 @@ ACTIVE_SYNC_CODES = {}
 WAITING_FOR_SYNC_RESULT = {}
 WAITING_FOR_WEB_LOGIN = {}
 WAITING_FOR_WEB_PASSWORD = {}
+WAITING_FOR_BROADCAST = {}  # Для админ панели
 
 # Test user for new design
 TEST_USER_ID = "5302383529"  # @first1523
+
+# Admin panel texts
+ADMIN_MSG = """👑 <b>Админ панель</b>
+
+Управление ботом VenturaVPN:
+
+• Отправка сообщений всем пользователям
+• Остановка/запуск бота для всех
+• Статистика и аналитика"""
+
+ADMIN_KB = {"inline_keyboard": [
+    [{"text": "📢 Отправить сообщение", "callback_data": "admin_broadcast"}],
+    [{"text": "⏹ Остановить бота", "callback_data": "admin_stop"}],
+    [{"text": "▶️ Запустить бота", "callback_data": "admin_start"}],
+    [{"text": "📊 Статистика", "callback_data": "admin_stats"}],
+    [{"text": "🔙 Назад", "callback_data": "back_main"}]
+]}
 
 # New design texts for test user
 NEW_PARTNER_MSG = """👀 Пссс... есть тема!
@@ -157,15 +175,23 @@ def get_sub_status(uid):
         return {"active": False, "has_sub": False, "expires": 0, "devices": [], "max_devices": 5, "cid": ""}
 
 def format_subscription_end_date(expires_timestamp):
-    """Форматирует timestamp в читаемую дату окончания подписки."""
+    """Форматирует timestamp в читаемую дату окончания подписки на русском."""
     if not expires_timestamp or expires_timestamp == 0:
         return "неизвестно"
     try:
-        end_date = time.strftime('%d %B %Y', time.localtime(expires_timestamp))
-        # Убираем ведущий ноль у дня для русского языка
-        day = str(int(time.strftime('%d', time.localtime(expires_timestamp))))
-        month_year = time.strftime(' %B %Y', time.localtime(expires_timestamp))
-        return day + month_year
+        t = time.localtime(expires_timestamp)
+        day = str(int(time.strftime('%d', t)))
+        # Русские названия месяцев
+        months_ru = {
+            '01': 'января', '02': 'февраля', '03': 'марта',
+            '04': 'апреля', '05': 'мая', '06': 'июня',
+            '07': 'июля', '08': 'августа', '09': 'сентября',
+            '10': 'октября', '11': 'ноября', '12': 'декабря'
+        }
+        month_num = time.strftime('%m', t)
+        year = time.strftime('%Y', t)
+        month_name = months_ru.get(month_num, 'месяца')
+        return f"{day} {month_name} {year}"
     except:
         return "неизвестно"
 
@@ -294,10 +320,12 @@ def get_main_kb(uid_raw):
         else:
             row1 = [{"text": "🧪 Тест-драйв VPN", "callback_data": "trial"}]
 
+        # Add admin panel button for test user
         return {"inline_keyboard": [
             row1,
             [{"text": "🎁Есть код?", "callback_data": "enter_promo"}, {"text": "💰зови друзей", "callback_data": "partner"}],
             [{"text": "Каролина, помоги", "url": "https://t.me/ventura_sup"}, {"text": "О Ventura", "callback_data": "info"}],
+            [{"text": "👑 Админ панель", "callback_data": "admin_panel"}]  # Admin panel button
         ]}
     else:
         # Old design
@@ -647,6 +675,68 @@ def main():
                             safe_edit(chat, cq["message"],
                                 text=WELCOME, parse_mode="HTML", reply_markup=get_main_kb(uid_raw))
 
+                    # Admin panel handlers for test user only
+                    elif data == "admin_panel":
+                        frm = cq.get("from", {})
+                        uid_raw = str(frm.get("id"))
+                        is_test_user = (uid_raw == TEST_USER_ID)
+                        if is_test_user:
+                            api("sendMessage", chat_id=chat, text=ADMIN_MSG, parse_mode="HTML", reply_markup=ADMIN_KB)
+                        else:
+                            api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
+
+                    elif data == "admin_broadcast":
+                        frm = cq.get("from", {})
+                        uid_raw = str(frm.get("id"))
+                        is_test_user = (uid_raw == TEST_USER_ID)
+                        if is_test_user:
+                            msg = """📢 <b>Отправить сообщение всем пользователям</b>
+
+Введите текст сообщения:
+(отправьте /cancel для отмены)"""
+                            kb = {"inline_keyboard": [[{"text": "❌ Отмена", "callback_data": "admin_panel"}]]}
+                            api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML", reply_markup=kb)
+                            # Set flag for waiting broadcast message
+                            WAITING_FOR_BROADCAST[uid_raw] = True
+                        else:
+                            api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
+
+                    elif data == "admin_stop":
+                        frm = cq.get("from", {})
+                        uid_raw = str(frm.get("id"))
+                        is_test_user = (uid_raw == TEST_USER_ID)
+                        if is_test_user:
+                            # Here you would implement bot stop logic
+                            api("sendMessage", chat_id=chat, text="⏹ Бот остановлен для всех пользователей", reply_markup=ADMIN_KB)
+                        else:
+                            api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
+
+                    elif data == "admin_start":
+                        frm = cq.get("from", {})
+                        uid_raw = str(frm.get("id"))
+                        is_test_user = (uid_raw == TEST_USER_ID)
+                        if is_test_user:
+                            # Here you would implement bot start logic
+                            api("sendMessage", chat_id=chat, text="▶️ Бот запущен для всех пользователей", reply_markup=ADMIN_KB)
+                        else:
+                            api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
+
+                    elif data == "admin_stats":
+                        frm = cq.get("from", {})
+                        uid_raw = str(frm.get("id"))
+                        is_test_user = (uid_raw == TEST_USER_ID)
+                        if is_test_user:
+                            stats_msg = """📊 <b>Статистика бота</b>
+
+👥 Всего пользователей: N/A
+📈 Активных сегодня: N/A
+💰 Доход за месяц: N/A ₽
+
+(Полная статистика будет доступна позже)"""
+                            api("sendMessage", chat_id=chat, text=stats_msg, parse_mode="HTML", reply_markup=ADMIN_KB)
+                        else:
+                            api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
+
                     elif data == "sync_menu":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
@@ -764,12 +854,27 @@ def main():
 
                         # New design for test user
                         if is_test_user:
-                            msg = NEW_PARTNER_MSG
+                            ref_link = f"https://t.me/VenturaVpnRobot?start=ref_{uid_raw}"
+                            msg = """🤝 <b>Приводи друзей — получай бонусы!</b>
+
+Хочешь бесплатный VPN ещё дольше? Всё просто:
+
+1️⃣ Отправь друзьям эту ссылку:
+🔗 <code>{ref_link}</code>
+
+2️⃣ Друг оплачивает подписку
+3️⃣ Вы оба получаете +5 бонусных дней 🎁
+
+📊 <b>Твоя статистика:</b>
+👥 Приглашено: {invited}
+🎁 Бонусов получено: 0 дней
+
+А если хочешь зарабатывать реальные деньги — пиши в поддержку, расскажем про партнёрку с выплатами 💰""".format(ref_link=ref_link, invited=stats.get("count", 0))
                             kb = {"inline_keyboard": [
-                                [{"text": "Приглашенные", "callback_data": "ref_invited"}],
-                                [{"text": "назад", "callback_data": "back_main"}]
+                                [{"text": "Поддержка", "url": "https://t.me/ventura_sup"}],
+                                [{"text": "Назад", "callback_data": "back_main"}]
                             ]}
-                            api("sendMessage", chat_id=chat, text=msg, reply_markup=kb)
+                            api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML", reply_markup=kb)
                         else:
                             global BOT_USERNAME
                             if BOT_USERNAME is None:
@@ -841,8 +946,23 @@ def main():
                         uid_raw = str(frm.get("id"))
                         is_test_user = (uid_raw == TEST_USER_ID)
                         if is_test_user:
-                            msg = "Ссылка на акк"
-                            api("sendMessage", chat_id=chat, text=msg, reply_markup=get_main_kb(uid_raw))
+                            msg = """<b>VenturaVPN — интернет без границ.</b>
+
+VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис для тех, кто ценит свободу в сети. Мы используем <b>качественные серверы</b> и собственные <b>белые IP-адреса</b>, чтобы обеспечить стабильное соединение, высокую скорость и минимальные задержки.
+
+<b>С VenturaVPN вы сможете:</b>
+• Обходить блокировки и ограничения.
+• Защищать свои данные в общественных Wi-Fi сетях.
+• Смотреть любимые сервисы без лишних препятствий.
+• Пользоваться интернетом <i>быстро и безопасно</i>.
+
+⚡ <b>Высокая скорость</b>
+🔒 <b>Надёжная защита данных</b>
+🌍 <b>Серверы в разных странах</b>
+📱 <b>Поддержка всех популярных устройств</b>
+
+<i>VenturaVPN — когда нужен интернет таким, каким он должен быть.</i>"""
+                            api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
                         else:
                             msg = "ℹ️ <b>Информация</b>\n\n<a href='https://venturavpn.club/polzovatelskoe-soglashenie.html'>📄 Соглашение</a>\n<a href='https://venturavpn.club/politika-konfidencialnosti.html'>🔒 Конфиденциальность</a>"
                             api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
@@ -898,6 +1018,19 @@ def main():
                     continue
                 chat_id = msg["chat"]["id"]
                 text = msg.get("text", "") or ""
+                uid_raw = str(msg["from"]["id"])
+
+                # Handle broadcast message from admin
+                if WAITING_FOR_BROADCAST.get(uid_raw):
+                    if text == "/cancel":
+                        del WAITING_FOR_BROADCAST[uid_raw]
+                        api("sendMessage", chat_id=chat_id, text="❌ Отменено", reply_markup=get_main_kb(uid_raw))
+                    else:
+                        del WAITING_FOR_BROADCAST[uid_raw]
+                        # Here you would send the message to all users
+                        api("sendMessage", chat_id=chat_id, text=f"📢 Сообщение отправлено всем пользователям:\n\n{text}", reply_markup=ADMIN_KB)
+                    continue
+
                 if text.startswith("/start"):
                     uid_raw = str(msg["from"]["id"])
                     parts = text.split()
