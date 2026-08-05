@@ -163,6 +163,116 @@ def get_ref_stats(uid):
     except:
         return {"count": 0, "earned_days": 0, "earned_money": 0.0, "is_vip": False, "vip_balance": 0.0}
 
+def get_full_bot_stats():
+    """Получает полную статистику бота с панели."""
+    stats = {
+        "total_users": 0,
+        "active_today": 0,
+        "active_week": 0,
+        "active_month": 0,
+        "total_subscriptions": 0,
+        "active_subscriptions": 0,
+        "expired_subscriptions": 0,
+        "revenue_today": 0.0,
+        "revenue_week": 0.0,
+        "revenue_month": 0.0,
+        "new_users_today": 0,
+        "referrals_count": 0,
+        "devices_connected": 0,
+        "top_servers": [],
+        "avg_session_time": 0,
+        "uptime_hours": 0
+    }
+
+    try:
+        # Общая статистика пользователей
+        req = urllib.request.Request(
+            "http://150.241.66.53/api/admin/stats?secret=vpanel_7kQ2xR9mZ",
+            headers={"Host": "panel.venturavpn.club"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            panel_stats = json.load(r)
+
+        stats["total_users"] = panel_stats.get("total_users", 0)
+        stats["active_today"] = panel_stats.get("active_today", 0)
+        stats["active_week"] = panel_stats.get("active_week", 0)
+        stats["active_month"] = panel_stats.get("active_month", 0)
+        stats["total_subscriptions"] = panel_stats.get("total_subscriptions", 0)
+        stats["active_subscriptions"] = panel_stats.get("active_subscriptions", 0)
+        stats["expired_subscriptions"] = panel_stats.get("expired_subscriptions", 0)
+        stats["revenue_today"] = panel_stats.get("revenue_today", 0.0)
+        stats["revenue_week"] = panel_stats.get("revenue_week", 0.0)
+        stats["revenue_month"] = panel_stats.get("revenue_month", 0.0)
+        stats["new_users_today"] = panel_stats.get("new_users_today", 0)
+        stats["referrals_count"] = panel_stats.get("referrals_count", 0)
+        stats["devices_connected"] = panel_stats.get("devices_connected", 0)
+        stats["top_servers"] = panel_stats.get("top_servers", [])
+        stats["avg_session_time"] = panel_stats.get("avg_session_time", 0)
+        stats["uptime_hours"] = panel_stats.get("uptime_hours", 0)
+
+    except Exception as e:
+        print(f"Error getting full stats: {e}")
+
+    return stats
+
+def format_uptime(hours):
+    """Форматирует время аптайма в читаемый вид."""
+    if hours < 24:
+        return f"{int(hours)} часов"
+    days = int(hours // 24)
+    remaining_hours = int(hours % 24)
+    if days < 30:
+        return f"{days} дней {remaining_hours} часов"
+    months = int(days // 30)
+    remaining_days = days % 30
+    return f"{months} месяцев {remaining_days} дней"
+
+def format_stats_message(stats):
+    """Форматирует статистику в красивое сообщение."""
+    msg = "📊 <b>МЕГА ПОЛНАЯ статистика бота</b>\n\n"
+
+    # Пользователи
+    msg += "<b>👥 ПОЛЬЗОВАТЕЛИ:</b>\n"
+    msg += f"• Всего: <b>{stats['total_users']}</b>\n"
+    msg += f"• Новых сегодня: <b>+{stats['new_users_today']}</b>\n"
+    msg += f"• Активных сегодня: <b>{stats['active_today']}</b>\n"
+    msg += f"• Активных за неделю: <b>{stats['active_week']}</b>\n"
+    msg += f"• Активных за месяц: <b>{stats['active_month']}</b>\n\n"
+
+    # Подписки
+    msg += "<b>💎 ПОДПИСКИ:</b>\n"
+    msg += f"• Всего оформлено: <b>{stats['total_subscriptions']}</b>\n"
+    msg += f"• Активных сейчас: <b>{stats['active_subscriptions']}</b>\n"
+    msg += f"• Истекло: <b>{stats['expired_subscriptions']}</b>\n"
+    msg += f"• Устройств подключено: <b>{stats['devices_connected']}</b>\n\n"
+
+    # Доход
+    msg += "<b>💰 ДОХОД:</b>\n"
+    msg += f"• Сегодня: <b>{stats['revenue_today']:.0f} ₽</b>\n"
+    msg += f"• За неделю: <b>{stats['revenue_week']:.0f} ₽</b>\n"
+    msg += f"• За месяц: <b>{stats['revenue_month']:.0f} ₽</b>\n\n"
+
+    # Рефералы
+    msg += "<b>🤝 РЕФЕРАЛЫ:</b>\n"
+    msg += f"• Всего приглашено: <b>{stats['referrals_count']}</b>\n\n"
+
+    # Серверы
+    msg += "<b>🌍 ТОП СЕРВЕРЫ:</b>\n"
+    if stats['top_servers']:
+        for i, server in enumerate(stats['top_servers'][:5], 1):
+            name = server.get('name', 'N/A')
+            users = server.get('users', 0)
+            msg += f"{i}. {name} — <b>{users}</b> пользователей\n"
+    else:
+        msg += "Данные недоступны\n"
+
+    # Аптайм
+    msg += f"\n<b>⚙️ ТЕХНИЧЕСКОЕ:</b>\n"
+    msg += f"• Среднее время сессии: <b>{format_uptime(stats['avg_session_time'])}</b>\n"
+    msg += f"• Аптайм бота: <b>{format_uptime(stats['uptime_hours'])}</b>\n"
+
+    return msg
+
 def get_sub_status(uid):
     try:
         req = urllib.request.Request(
@@ -726,13 +836,9 @@ def main():
                         uid_raw = str(frm.get("id"))
                         is_test_user = (uid_raw == TEST_USER_ID)
                         if is_test_user:
-                            stats_msg = """📊 <b>Статистика бота</b>
-
-👥 Всего пользователей: N/A
-📈 Активных сегодня: N/A
-💰 Доход за месяц: N/A ₽
-
-(Полная статистика будет доступна позже)"""
+                            # Получаем полную статистику
+                            full_stats = get_full_bot_stats()
+                            stats_msg = format_stats_message(full_stats)
                             api("sendMessage", chat_id=chat, text=stats_msg, parse_mode="HTML", reply_markup=ADMIN_KB)
                         else:
                             api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
