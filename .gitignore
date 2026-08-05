@@ -1,0 +1,4 @@
+token
+*.pyc
+__pycache__/
+*.log

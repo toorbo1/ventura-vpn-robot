@@ -1,0 +1,39 @@
+name: Deploy VenturaVPN Robot
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+    - name: Deploy to server
+      env:
+        SERVER_USER: ${{ secrets.SERVER_USER }}
+        SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      run: |
+        # Upload bot file
+        scp bot.py ${SERVER_USER}@${SERVER_HOST}:/root/bot/bot.py
+
+        # Restart bot
+        ssh ${SERVER_USER}@${SERVER_HOST} << 'EOF'
+          kill -HUP $(pgrep -f "bot.py") || true
+          sleep 2
+          cd /root/bot && python3 bot.py &
+          sleep 2
+          ps aux | grep bot.py | grep -v grep
+        EOF
+
+        echo "VenturaVPN Robot deployed successfully!"

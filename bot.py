@@ -1,0 +1,854 @@
+#!/usr/bin/env python3
+"""VenturaVPN beta-feedback bot. Stdlib only (urllib) — no pip deps.
+Greets the user, explains its purpose, shows an "Отправить отзыв" button,
+and saves every text message to /var/lib/ventura/feedback.jsonl."""
+import os, json, time, urllib.request, urllib.parse, urllib.error, threading, logging, re
+
+TOKEN = os.environ.get("BOT_TOKEN", "").strip()
+if not TOKEN:
+    try:
+        TOKEN = open("/root/bot/token").read().strip()
+    except Exception:
+        TOKEN = ""
+API = f"https://api.telegram.org/bot{TOKEN}"
+
+DATA_DIR = "/var/lib/ventura"
+FEEDBACK = os.path.join(DATA_DIR, "feedback.jsonl")
+KEYREQ = os.path.join(DATA_DIR, "key_requests.jsonl")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+KEY_URL = "https://venturavpn.club/test_with_no_ping_de"  # fallback
+PANEL_ISSUE = "https://panel.venturavpn.club/api/issue?secret=vpanel_7kQ2xR9mZ&name={uid}"
+PANEL_TRIAL = "https://panel.venturavpn.club/api/trial?secret=vpanel_7kQ2xR9mZ&name={uid}"
+PANEL_REF_ADD = "https://panel.venturavpn.club/api/ref/add?uid={uid}&referrer={referrer}"
+PANEL_REF_STATS = "https://panel.venturavpn.club/api/ref/stats?uid={uid}"
+
+BOT_USERNAME = None
+WAITING_FOR_PROMO = {}
+WAITING_FOR_SYNC_CODE = {}
+ACTIVE_SYNC_CODES = {}
+WAITING_FOR_SYNC_RESULT = {}
+WAITING_FOR_WEB_LOGIN = {}
+WAITING_FOR_WEB_PASSWORD = {}
+
+logging.basicConfig(level=logging.INFO)
+
+PANEL_LINK = "https://panel.venturavpn.club/api/account"
+PANEL_SEC = "vpanel_7kQ2xR9mZ"
+
+def _api_get(path, **params):
+    qs = urllib.parse.urlencode({"secret": PANEL_SEC, **params})
+    url = f"{PANEL_LINK}/{path}?{qs}"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        try:
+            return json.loads(e.read().decode())
+        except Exception:
+            return {"error": str(e)}
+    except Exception as e:
+        return {"error": str(e)}
+
+def link_generate(uid, platform, username=""):
+    return _api_get("link/generate", uid=uid, platform=platform, username=username)
+
+def link_apply(code, uid, platform, username=""):
+    return _api_get("link/apply", code=code, uid=uid, platform=platform, username=username)
+
+def link_confirm(code, uid, confirm=True):
+    return _api_get("link/confirm", code=code, uid=uid, confirm="true" if confirm else "false")
+
+def link_status(uid):
+    return _api_get("link/status", uid=uid)
+
+def pending_confirmation(uid):
+    return _api_get("pending_confirmation", uid=uid)
+
+def link_cancel(uid):
+    return _api_get("link/cancel", uid=uid)
+
+# Removed encrypt_happ_url
+def issue_key(uid, username=""):
+    """Ask the panel for this user's personal subscription link (idempotent per uid).
+    Browser User-Agent is required — Cloudflare blocks default urllib UA with 403/1010."""
+    try:
+        url = PANEL_ISSUE.format(uid=uid)
+        if username:
+            url += f"&display={urllib.parse.quote('@'+username)}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/124"})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            url = json.load(r).get("url")
+            return url
+    except Exception:
+        return None
+
+def issue_trial(uid, username=""):
+    try:
+        url = PANEL_TRIAL.format(uid=uid)
+        if username:
+            url += f"&display={urllib.parse.quote('@'+username)}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/124"})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            url = json.load(r).get("url")
+            return url
+    except Exception:
+        return None
+
+def add_referral(uid, referrer):
+    try:
+        url = PANEL_REF_ADD.format(uid=uid, referrer=referrer)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/124"})
+        urllib.request.urlopen(req, timeout=5)
+    except: pass
+
+def get_ref_stats(uid):
+    try:
+        url = PANEL_REF_STATS.format(uid=uid)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/124"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return json.load(r)
+    except:
+        return {"count": 0, "earned_days": 0, "earned_money": 0.0, "is_vip": False, "vip_balance": 0.0}
+
+def get_sub_status(uid):
+    try:
+        req = urllib.request.Request(
+            f"http://150.241.66.53/api/payment/has_active?uid={uid}",
+            headers={"Host": "panel.venturavpn.club"}
+        )
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return json.load(r)
+    except:
+        return {"active": False, "has_sub": False, "expires": 0, "devices": [], "max_devices": 5, "cid": ""}
+
+def delete_device(cid, hwid):
+    try:
+        req = urllib.request.Request(
+            f"http://150.241.66.53/api/payment/delete_device?cid={cid}&hwid={hwid}",
+            headers={"Host": "panel.venturavpn.club"}
+        )
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return json.load(r)
+    except:
+        return {"ok": False}
+
+
+def key_message():
+    return (
+        "🔑 <b>Ваша персональная подписка</b>\n\n"
+        "Нажмите кнопку <b>🚀 Подключить</b> ниже, чтобы автоматически добавить серверы в приложение.\n\n"
+        "<b>Инструкция по подключению:</b>\n"
+        "1. Установите приложение <b>HAPP</b> из App Store / Google Play.\n"
+        "2. Нажмите на кнопку <b>🚀 Подключить</b> под этим сообщением.\n"
+        "3. В приложении перейдите в <b>⚙️ Настройки</b> -> <b>«Подписки»</b> и выберите <b>Сортировать по пингу</b>.\n"
+        "4. Выйдите в главное меню и нажмите кнопку подключения! 🚀\n\n"
+        "📱 <b>На iPhone:</b> если HApp не открылся автоматически, нажмите «Скопировать ссылку» на открывшейся странице, "
+        "затем откройте HApp → ☰ → «Подписки» → «+ Добавить» и вставьте ссылку."
+    )
+
+WELCOME = """Привет!.
+
+Мы даём доступ к сети без ограничений и блокировок. Наша главная фишка — высокая скорость, потому что мы не экономим на серверах и используем собственные белые списки IP-адресов (доверенные, чистые адреса, которые не блокируются).
+
+<b>Что тебя ждёт:</b>
+✅ Обход любых блокировок (РКН и другие) — подключайся и забывай.
+✅ Множество серверов по всему миру — стабильное соединение всегда.
+✅ Максимальная скорость — идеально для игр, стримов и работы.
+✅ Telegram-канал с эксклюзивными материалами — <a href='https://t.me/venturaVPN'>@venturaVPN</a> (подпишись, чтобы быть в курсе!).
+
+🚀 <b>А в будущем станет ещё круче:</b>
+🔹 Нативное приложение — ещё проще и быстрее.
+🔹 Встроенный ИИ — для умной маршрутизации трафика
+🔹 Супер скидки и предложения
+
+Старт — в один клик! 👇
+
+Нажми кнопку «Тестовая подписка» и получи доступ прямо сейчас. Бот скоро станет твоим незаменимым помощником 🚀"""
+def get_main_kb(uid_raw):
+    uid = f"tg{uid_raw}"
+    status = get_sub_status(uid)
+    has_sub = status.get("has_sub", False)
+    
+    if has_sub:
+        row1 = [{"text": "💎 Моя подписка", "callback_data": "mysub_menu"}]
+    else:
+        row1 = [{"text": "🧪 Тестовая подписка", "callback_data": "trial"}, {"text": "💎 Купить подписку", "callback_data": "buy"}]
+
+    return {"inline_keyboard": [
+        row1,
+        [{"text": "🎫 Промокоды", "callback_data": "enter_promo"}, {"text": "🤝 Партнерка", "callback_data": "partner"}],
+        [{"text": "🛠 Техподдержка", "url": "https://t.me/ventura_sup"}, {"text": "ℹ️ Инфо", "callback_data": "info"}],
+    ]}
+
+def get_mysub_kb(status):
+    kb = []
+    # If no subscription ever, show trial
+    if not status.get("has_sub"):
+        kb.append([{"text": "🎁 Пробная (3 дня)", "callback_data": "trial"}])
+    
+    # Buy button
+    if status.get("has_sub"):
+        kb.append([{"text": "💳 Докупить 30 дней (200 ₽)", "callback_data": "buy"}])
+    else:
+        kb.append([{"text": "💳 Оформить на месяц (200 ₽)", "callback_data": "buy"}])
+    
+    if status.get("has_sub"):
+        kb.append([{"text": "🔑 Получить мой ключ", "callback_data": "get_key"}, {"text": "📱 Мои устройства", "callback_data": "my_devices"}])
+        kb.append([{"text": "🌍 Выбор серверов", "callback_data": "select_subfile"}])
+    kb.append([{"text": "🔗 Синхронизация аккаунтов", "callback_data": "sync_menu"}])
+    kb.append([{"text": "🔙 Назад", "callback_data": "back_main"}])
+    return {"inline_keyboard": kb}
+
+
+def api(method, **params):
+    params = {k: v for k, v in params.items() if v is not None}
+    body = urllib.parse.urlencode(
+        {k: (json.dumps(v) if isinstance(v, (dict, list)) else v) for k, v in params.items()}
+    ).encode()
+    try:
+        with urllib.request.urlopen(f"{API}/{method}", data=body, timeout=75) as r:
+            return json.load(r)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+
+
+def log_key_request(frm):
+    rec = {
+        "ts": int(time.time()),
+        "date": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+        "user_id": frm.get("id"),
+        "username": frm.get("username"),
+        "name": ((frm.get("first_name") or "") + " " + (frm.get("last_name") or "")).strip(),
+    }
+    with open(KEYREQ, "a", encoding="utf-8") as f:
+        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+
+def do_buy(chat, uid, promo=""):
+    uid_raw = uid.replace("tg", "")
+    try:
+        url = f"http://150.241.66.53/api/payment/bot_create?secret=vpanel_7kQ2xR9mZ&uid={uid}"
+        if promo:
+            url += f"&promo={urllib.parse.quote(promo)}"
+        req = urllib.request.Request(url, headers={"Host": "panel.venturavpn.club"})
+        try:
+            r = urllib.request.urlopen(req, timeout=15)
+        except urllib.error.HTTPError as e:
+            # Try to read the actual error from the JSON body
+            try:
+                body = json.load(e)
+                if body.get("promo_error"):
+                    return {"error": body.get("error", "Промокод недействителен"), "promo_error": True}
+            except Exception:
+                pass
+            api("sendMessage", chat_id=chat, text=f"Ошибка сервера платежей: {e}")
+            return {"error": str(e)}
+        with r:
+            res = json.load(r)
+            if res.get("promo_error"):
+                return {"error": res.get("error"), "promo_error": True}
+            
+            pay_url = res.get("pay_url")
+            if pay_url:
+                if pay_url == "free":
+                    api("sendMessage", chat_id=chat, text="🎉 Ваша подписка успешно активирована бесплатно! Нажмите «Моя подписка».", reply_markup=get_main_kb(uid_raw))
+                else:
+                    kb_pay = {"inline_keyboard": [
+                        [{"text": f"💳 Оплатить ({res.get('amount')} ₽)", "url": pay_url}],
+                        [{"text": "🔄 Проверить оплату", "callback_data": f"check_{uid}"}],
+                        [{"text": "🔙 В главное меню", "callback_data": "back_main"}]
+                    ]}
+                    if promo:
+                        msg_text = f"✅ Промокод <b>{promo}</b> успешно применен!\n\nДля оформления подписки перейдите по персональной ссылке ниже."
+                    else:
+                        msg_text = "Для оформления подписки перейдите по персональной ссылке ниже."
+                    api("sendMessage", chat_id=chat, text=msg_text, reply_markup=kb_pay, parse_mode="HTML")
+                return {"ok": True}
+            else:
+                api("sendMessage", chat_id=chat, text="Ошибка создания платежа. Попробуйте позже.")
+                return {"error": "no pay url"}
+    except Exception as e:
+        api("sendMessage", chat_id=chat, text=f"Ошибка сервера платежей: {e}")
+        return {"error": str(e)}
+
+
+def safe_edit(chat, msg, **kwargs):
+    if "photo" in msg:
+        api("deleteMessage", chat_id=chat, message_id=msg["message_id"])
+        api("sendMessage", chat_id=chat, **kwargs)
+    else:
+        api("editMessageText", chat_id=chat, message_id=msg["message_id"], **kwargs)
+
+def main():
+    if not TOKEN:
+        print("ERROR: no BOT_TOKEN / /root/bot/token"); return
+    offset = None
+    print("VenturaVPN feedback bot started")
+    while True:
+        resp = api("getUpdates", offset=offset, timeout=60)
+        if not resp.get("ok"):
+            time.sleep(3); continue
+        for upd in resp.get("result", []):
+            offset = upd["update_id"] + 1
+            try:
+                if "callback_query" in upd:
+                    cq = upd["callback_query"]
+                    data = cq.get("data", "")
+                    api("answerCallbackQuery", callback_query_id=cq["id"])
+                    chat = cq["message"]["chat"]["id"]
+                    if data == "mysub_menu":
+                        frm = cq.get("from", {})
+                        uid = f"tg{frm.get('id')}"
+                        status = get_sub_status(uid)
+                        
+                        msg = "<b>📱 Управление подпиской</b>\n\n"
+                        if status.get("has_sub"):
+                            exp = status.get("expires", 0)
+                            max_dev = status.get("max_devices", 5)
+                            msg += f"Лимит устройств: <b>{max_dev}</b>\n\n"
+                            
+                            if exp == 0:
+                                msg += "Статус: <b>Бессрочно</b>\nОсталось дней: <b>∞</b>\n"
+                            else:
+                                now = int(time.time())
+                                if exp > now:
+                                    days = int((exp - now) / 86400)
+                                    date_str = time.strftime("%d.%m.%Y", time.gmtime(exp))
+                                    msg += f"Статус: <b>Активна</b>\nОсталось дней: <b>{days}</b>\nДействует до: <b>{date_str}</b>\n"
+                                else:
+                                    date_str = time.strftime("%d.%m.%Y", time.gmtime(exp))
+                                    msg += f"Статус: <b>Истекла</b> ({date_str})\nОсталось дней: <b>0</b>\n"
+                        else:
+                            msg += "У вас пока нет активной подписки.\n"
+                        
+                        safe_edit(chat, cq["message"],
+                            text=msg, parse_mode="HTML", reply_markup=get_mysub_kb(status))
+                            
+                    elif data == "select_subfile":
+                        frm = cq.get("from", {})
+                        uid = f"tg{frm.get('id')}"
+                        status = get_sub_status(uid)
+                        current = status.get("subfile", "mini")
+                        
+                        msg = "<b>🌍 Выбор протестированного списка серверов</b>\n\n"
+                        msg += "Из-за особенностей блокировок в разных сетях (в России и за рубежом), "
+                        msg += "одни и те же серверы могут работать по-разному.\n\n"
+                        msg += "Выберите, какой список серверов вы хотите получать в подписке:"
+                        
+                        chk_lite = " ✅" if current == "lite" else ""
+                        chk_mini = " ✅" if current == "mini" else ""
+                        chk_all = " ✅" if current == "all" else ""
+                        kb = [
+                            [{"text": f"🌍 Все серверы{chk_all}", "callback_data": "set_subfile_all"}],
+                            [{"text": f"⚡ Лайт (первые 300){chk_lite}", "callback_data": "set_subfile_lite"}],
+                            [{"text": f"📱 Мини (первые 100){chk_mini}", "callback_data": "set_subfile_mini"}],
+                            [{"text": "🔙 К подписке", "callback_data": "mysub_menu"}]
+                        ]
+                        safe_edit(chat, cq["message"],
+                            text=msg, parse_mode="HTML", reply_markup={"inline_keyboard": kb})
+                            
+                    elif data.startswith("set_subfile_"):
+                        frm = cq.get("from", {})
+                        uid = f"tg{frm.get('id')}"
+                        subfile = data.replace("set_subfile_", "")
+                        status = get_sub_status(uid)
+                        cid = status.get("cid", "")
+                        
+                        if cid and subfile in ("all", "lite", "mini"):
+                            try:
+                                req = urllib.request.Request(
+                                    f"http://150.241.66.53/api/payment/set_subfile?cid={cid}&subfile={subfile}",
+                                    headers={"Host": "panel.venturavpn.club"}
+                                )
+                                urllib.request.urlopen(req, timeout=5)
+                                api("answerCallbackQuery", callback_query_id=cq["id"], text="✅ Сохранено! Обновите подписку в клиенте.", show_alert=True)
+                            except Exception:
+                                api("answerCallbackQuery", callback_query_id=cq["id"], text="Ошибка сохранения", show_alert=True)
+                                
+                        # Return to the selection menu to show updated checkmark
+                        status = get_sub_status(uid)
+                        current = status.get("subfile", "mini")
+                        
+                        msg = "<b>🌍 Выбор протестированного списка серверов</b>\n\n"
+                        msg += "Из-за особенностей блокировок в разных сетях (в России и за рубежом), "
+                        msg += "одни и те же серверы могут работать по-разному.\n\n"
+                        msg += "Выберите, какой список серверов вы хотите получать в подписке:"
+                        
+                        chk_lite = " ✅" if current == "lite" else ""
+                        chk_mini = " ✅" if current == "mini" else ""
+                        chk_all = " ✅" if current == "all" else ""
+                        
+                        kb = [
+                            [{"text": f"🌍 Все серверы{chk_all}", "callback_data": "set_subfile_all"}],
+                            [{"text": f"⚡ Лайт (первые 300){chk_lite}", "callback_data": "set_subfile_lite"}],
+                            [{"text": f"📱 Мини (первые 100){chk_mini}", "callback_data": "set_subfile_mini"}],
+                            [{"text": "🔙 К подписке", "callback_data": "mysub_menu"}]
+                        ]
+                        safe_edit(chat, cq["message"],
+                            text=msg, parse_mode="HTML", reply_markup={"inline_keyboard": kb})
+
+                    elif data == "my_devices":
+                        frm = cq.get("from", {})
+                        uid = f"tg{frm.get('id')}"
+                        status = get_sub_status(uid)
+                        devices = status.get("devices", [])
+                        max_dev = status.get("max_devices", 5)
+                        
+                        msg = f"<b>📱 Ваши устройства ({len(devices)}/{max_dev})</b>\n\n"
+                        kb = []
+                        if not devices:
+                            msg += "У вас пока нет привязанных устройств. Они появятся здесь, когда вы подключитесь к VPN."
+                        else:
+                            msg += "Нажмите на устройство ниже, чтобы удалить его из подписки:\n"
+                            for i, d in enumerate(devices):
+                                name = d.get("name", "Неизвестное устройство")
+                                d_time = time.strftime("%d.%m.%Y %H:%M", time.gmtime(d.get("last_seen", 0)))
+                                msg += f"\n{i+1}. <b>{name}</b> (был в сети: {d_time})"
+                                kb.append([{"text": f"❌ Удалить {name}", "callback_data": f"del_dev_{d.get('hwid')}"}])
+                                
+                        kb.append([{"text": "🔙 К подписке", "callback_data": "mysub_menu"}])
+                        safe_edit(chat, cq["message"],
+                            text=msg, parse_mode="HTML", reply_markup={"inline_keyboard": kb})
+                            
+                    elif data.startswith("del_dev_"):
+                        frm = cq.get("from", {})
+                        uid = f"tg{frm.get('id')}"
+                        hwid = data[8:]
+                        status = get_sub_status(uid)
+                        cid = status.get("cid", "")
+                        
+                        if cid and hwid:
+                            delete_device(cid, hwid)
+                            api("answerCallbackQuery", callback_query_id=cq["id"], text="✅ Устройство удалено", show_alert=False)
+                            
+                            # Fetch updated status
+                            status = get_sub_status(uid)
+                            devices = status.get("devices", [])
+                            max_dev = status.get("max_devices", 5)
+                            
+                            msg = f"<b>📱 Ваши устройства ({len(devices)}/{max_dev})</b>\n\n"
+                            kb = []
+                            if not devices:
+                                msg += "У вас пока нет привязанных устройств. Они появятся здесь, когда вы подключитесь к VPN."
+                            else:
+                                msg += "Нажмите на устройство ниже, чтобы удалить его из подписки:\n"
+                                for i, d in enumerate(devices):
+                                    name = d.get("name", "Неизвестное устройство")
+                                    d_time = time.strftime("%d.%m.%Y %H:%M", time.gmtime(d.get("last_seen", 0)))
+                                    msg += f"\n{i+1}. <b>{name}</b> (был в сети: {d_time})"
+                                    kb.append([{"text": f"❌ Удалить {name}", "callback_data": f"del_dev_{d.get('hwid')}"}])
+                            kb.append([{"text": "🔙 К подписке", "callback_data": "mysub_menu"}])
+                            
+                            safe_edit(chat, cq["message"],
+                                text=msg, parse_mode="HTML", reply_markup={"inline_keyboard": kb})
+                        else:
+                            api("answerCallbackQuery", callback_query_id=cq["id"], text="Ошибка удаления", show_alert=True)
+
+                    elif data == "get_key":
+                        frm = cq.get("from", {})
+                        uid = f"tg{frm.get('id')}"
+                        username = frm.get("username", "")
+                        url = issue_key(uid, username)
+                        if url:
+                            kb = {"inline_keyboard": [
+                                [{"text": "🚀 Подключить", "url": url}],
+                                [{"text": "🔙 Назад", "callback_data": "mysub_menu"}]
+                            ]}
+                            safe_edit(chat, cq["message"], 
+                                text=key_message(), parse_mode="HTML",
+                                disable_web_page_preview=True, reply_markup=kb)
+                        else:
+                            api("answerCallbackQuery", callback_query_id=cq["id"], text="Ключ не найден", show_alert=True)
+                            
+                    elif data == "back_main":
+                        frm = cq.get("from", {})
+                        uid_raw = str(frm.get("id"))
+                        safe_edit(chat, cq["message"],
+                            text=WELCOME, parse_mode="HTML", reply_markup=get_main_kb(uid_raw))
+
+                    elif data == "sync_menu":
+                        frm = cq.get("from", {})
+                        uid_raw = str(frm.get("id"))
+                        uid = f"tg{uid_raw}"
+                        username = frm.get("username", "")
+                        ls = link_status(uid)
+                        if ls.get("linked"):
+                            tg_name = ls.get("nameTG", "")
+                            max_name = ls.get("nameMAX", "")
+                            msg = "🔗 <b>Синхронизация аккаунтов</b>\n\n"
+                            msg += "✅ <b>Ваши аккаунты связаны:</b>\n"
+                            if tg_name:
+                                msg += f"  Telegram: <code>{tg_name}</code>\n"
+                            if max_name:
+                                msg += f"  MAX: <code>{max_name}</code>\n"
+                            msg += "\nПодписка общая для обеих платформ."
+                            kb = [{"text": "🔙 К подписке", "callback_data": "mysub_menu"}]
+                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", reply_markup={"inline_keyboard": [kb]})
+                        else:
+                            res = link_generate(uid, "tg", username)
+                            if res.get("error"):
+                                if res.get("error") == "already_linked":
+                                    msg = "🔗 <b>Синхронизация аккаунтов</b>\n\n✅ Ваш аккаунт уже привязан."
+                                else:
+                                    msg = f"❌ Ошибка: {res.get('error')}"
+                                kb = [{"text": "🔙 К подписке", "callback_data": "mysub_menu"}]
+                                safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", reply_markup={"inline_keyboard": [kb]})
+                            else:
+                                code = res.get("code", "")
+                                ACTIVE_SYNC_CODES[uid_raw] = {"code": code, "chat_id": chat}
+                                pc = pending_confirmation(uid)
+                                if pc.get("pending"):
+                                    app_uname = pc.get("applicant_username", "") or pc.get("applicant_uid", "")
+                                    app_plat = "MAX" if pc.get("applicant_platform") == "max" else "Telegram"
+                                    scode = pc.get("code", "")
+                                    msg = "🔗 <b>Синхронизация аккаунтов</b>\n\n"
+                                    msg += f"⏳ <b>Входящий запрос на привязку</b>\n\n"
+                                    msg += f"Пользователь <b>@{app_uname}</b> ({app_plat}) хочет связать свой аккаунт с вашим.\n"
+                                    msg += "Подтвердить привязку?\n\n"
+                                    msg += f"Ваш код: <code>{code}</code>"
+                                    kb = [
+                                        [{"text": "✅ Да", "callback_data": f"sync_confirm_{scode}_yes"}, {"text": "❌ Нет", "callback_data": f"sync_confirm_{scode}_no"}],
+                                        [{"text": "🔙 К подписке", "callback_data": "mysub_menu"}]
+                                    ]
+                                else:
+                                    msg = "🔗 <b>Синхронизация аккаунтов</b>\n\n"
+                                    msg += "Ваш код для привязки:\n"
+                                    msg += f"<code>{code}</code>\n\n"
+                                    msg += "Откройте бота в MAX, нажмите «Моя подписка» → «🔗 Синхронизация аккаунтов» и введите этот код.\n\n"
+                                    msg += "Код действителен 10 минут."
+                                    kb = [
+                                        [{"text": "📝 Ввести код", "callback_data": "sync_enter_code"}],
+                                        [{"text": "🔄 Обновить", "callback_data": "sync_menu"}],
+                                        [{"text": "🔙 К подписке", "callback_data": "mysub_menu"}]
+                                    ]
+                                safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", reply_markup={"inline_keyboard": kb})
+
+                    elif data == "sync_enter_code":
+                        frm = cq.get("from", {})
+                        uid_raw = str(frm.get("id"))
+                        WAITING_FOR_SYNC_CODE[uid_raw] = time.time()
+                        msg = "🔗 <b>Введите код синхронизации</b>\n\nОтправьте 10-символьный код, который вам дал другой пользователь."
+                        kb = [{"text": "🔙 Назад", "callback_data": "sync_menu"}]
+                        safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", reply_markup={"inline_keyboard": [kb]})
+
+                    elif data.startswith("sync_confirm_"):
+                        frm = cq.get("from", {})
+                        uid_raw = str(frm.get("id"))
+                        uid = f"tg{uid_raw}"
+                        parts = data[13:]
+                        confirm_yes = parts.endswith("_yes")
+                        scode = parts[:-4] if confirm_yes else parts[:-3]
+                        res = link_confirm(scode, uid, confirm=confirm_yes)
+                        if res.get("status") == "confirmed":
+                            msg = "✅ <b>Аккаунты успешно связаны!</b>\n\nТеперь подписка общая для Telegram и MAX."
+                            kb = [{"text": "🔙 К подписке", "callback_data": "mysub_menu"}]
+                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", reply_markup={"inline_keyboard": [kb]})
+                        elif res.get("status") == "rejected":
+                            msg = "❌ Привязка отклонена."
+                            kb = [{"text": "🔙 К подписке", "callback_data": "mysub_menu"}]
+                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", reply_markup={"inline_keyboard": [kb]})
+                        else:
+                            err = res.get("error", "неизвестная ошибка")
+                            api("answerCallbackQuery", callback_query_id=cq["id"], text=f"Ошибка: {err}", show_alert=True)
+                            
+                    elif data == "trial":
+                        frm = cq.get("from", {})
+                        uid = f"tg{frm.get('id')}"
+                        username = frm.get("username", "")
+                        url = issue_trial(uid, username)
+                        if url:
+                            kb = {"inline_keyboard": [
+                                [{"text": "🚀 Подключить", "url": url}],
+                                [{"text": "🔙 В меню", "callback_data": "back_main"}]
+                            ]}
+                            safe_edit(chat, cq["message"], 
+                                text=key_message(), parse_mode="HTML",
+                                disable_web_page_preview=True, reply_markup=kb)
+                        else:
+                            api("answerCallbackQuery", callback_query_id=cq["id"], text="Вы уже использовали пробную подписку", show_alert=True)
+                    elif data == "partner":
+                        frm = cq.get("from", {})
+                        uid_raw = str(frm.get('id'))
+                        stats = get_ref_stats(uid_raw)
+                        
+                        global BOT_USERNAME
+                        if BOT_USERNAME is None:
+                            try:
+                                req = urllib.request.Request(f"{API}/getMe")
+                                with urllib.request.urlopen(req, timeout=5) as r:
+                                    res = json.load(r)
+                                    if res.get("ok"):
+                                        BOT_USERNAME = res["result"]["username"]
+                            except:
+                                BOT_USERNAME = "venturavpn_bot"
+                                
+                        ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{uid_raw}"
+                        
+                        msg = "🤝 <b>Партнерская программа</b>\n\n"
+                        msg += "Делитесь этой ссылкой с друзьями и получайте бонусы:\n"
+                        msg += f"<code>{ref_link}</code>\n\n"
+                        msg += f"👥 Приглашено: <b>{stats['count']}</b>\n"
+                        
+                        if stats.get("is_vip"):
+                            role = "Партнёр" if stats.get("is_worker") else "VIP-партнёр"
+                            pct_f = int(stats.get("pct_first", 0.20) * 100)
+                            pct_r = int(stats.get("pct_renew", 0.10) * 100)
+                            pct_m = int(stats.get("pct_mentor", 0.05) * 100)
+                            msg += f"Ваш статус: <b>{role}</b>\n"
+                            msg += f"Ваш процент: <b>{pct_f}%</b> (первая покупка) / <b>{pct_r}%</b> (продление)\n"
+                            if pct_m > 0:
+                                msg += f"Менторский процент: <b>{pct_m}%</b>\n"
+                            msg += f"\n💰 Заработано всего: <b>{stats.get('total_earned', stats.get('earned_money', 0)):.2f} ₽</b>\n"
+                            msg += f"💳 Текущий баланс: <b>{stats.get('vip_balance', 0):.2f} ₽</b>\n"
+                            mentor_e = stats.get("mentor_earnings", 0)
+                            if mentor_e > 0:
+                                msg += f"🤝 Менторские бонусы: <b>{mentor_e:.2f} ₽</b>\n"
+                            msg += f"\n<i>(Вы получаете {pct_f}% с первой покупки и {pct_r}% с продлений)</i>"
+                        else:
+                            msg += f"🎁 Получено: <b>{stats.get('earned_days', 0)}</b> бонусных дней\n\n"
+                            msg += "<i>(Вы и ваш друг получаете по +5 дней, когда он впервые оплачивает подписку)</i>\n\n"
+                            msg += "Хотите стать партнёром и получать деньги? Напишите в техподдержку."
+                            
+                        api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML",
+                            disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
+                    elif data == "buy":
+                        frm = cq.get("from", {})
+                        uid_raw = str(frm.get('id'))
+                        WAITING_FOR_PROMO[uid_raw] = time.time()
+                        
+                        kb_promo = {"inline_keyboard": [
+                            [{"text": "➡️ Продолжить без промокода", "callback_data": "buy_no_promo"}],
+                            [{"text": "🔙 Отмена", "callback_data": "back_main"}]
+                        ]}
+                        msg_text = "🎁 <b>У вас есть промокод?</b>\n\nЕсли да, отправьте его ответным сообщением прямо сейчас 👇\n\nЕсли промокода нет, нажмите кнопку «Продолжить без промокода»."
+                        api("sendMessage", chat_id=chat, text=msg_text, reply_markup=kb_promo, parse_mode="HTML")
+                    elif data == "buy_no_promo":
+                        frm = cq.get("from", {})
+                        uid_raw = str(frm.get('id'))
+                        if uid_raw in WAITING_FOR_PROMO:
+                            del WAITING_FOR_PROMO[uid_raw]
+                        uid = f"tg{uid_raw}"
+                        do_buy(chat, uid)
+                    elif data == "enter_promo":
+                        frm = cq.get("from", {})
+                        uid_raw = str(frm.get('id'))
+                        WAITING_FOR_PROMO[uid_raw] = time.time()
+                        kb_promo = {"inline_keyboard": [[{"text": "🔙 Отмена", "callback_data": "back_main"}]]}
+                        api("sendMessage", chat_id=chat, text="🎁 <b>Отправьте ваш промокод</b> ответным сообщением прямо сейчас 👇", reply_markup=kb_promo, parse_mode="HTML")
+                    
+                    elif data == "info":
+                        frm = cq.get("from", {})
+                        uid_raw = str(frm.get("id"))
+                        msg = "ℹ️ <b>Информация</b>\n\n<a href='https://venturavpn.club/polzovatelskoe-soglashenie.html'>📄 Соглашение</a>\n<a href='https://venturavpn.club/politika-konfidencialnosti.html'>🔒 Конфиденциальность</a>"
+                        api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
+                    elif data.startswith("check_"):
+                        frm = cq.get("from", {})
+                        uid = f"tg{frm.get('id')}"
+                        try:
+                            req = urllib.request.Request(
+                                f"http://150.241.66.53/api/payment/check?order_id={uid}",
+                                headers={"Host": "panel.venturavpn.club"}
+                            )
+                            with urllib.request.urlopen(req, timeout=15) as r:
+                                res = json.load(r)
+                                if res.get("status") == "paid":
+                                    api("sendMessage", chat_id=chat, text="✅ Оплата успешно получена! Зайдите в меню «Моя подписка», чтобы получить ключ.", reply_markup=get_main_kb(uid_raw))
+                                else:
+                                    api("answerCallbackQuery", callback_query_id=cq["id"], text="⏳ Оплата пока не поступила", show_alert=True)
+                        except Exception as e:
+                            api("sendMessage", chat_id=chat, text=f"Ошибка проверки оплаты: {e}", reply_markup=get_main_kb(uid_raw))
+                    continue
+                msg = upd.get("message") or upd.get("edited_message")
+                if not msg:
+                    continue
+                chat_id = msg["chat"]["id"]
+                text = msg.get("text", "") or ""
+                if text.startswith("/start"):
+                    uid_raw = str(msg["from"]["id"])
+                    parts = text.split()
+                    if len(parts) > 1 and parts[1].startswith("ref_"):
+                        referrer = parts[1][4:]
+                        uid_raw = str(msg["from"]["id"])
+                        add_referral(uid_raw, referrer)
+                        
+                    PHOTO_URL = "https://venturavpn.club/bot-banner.jpg"
+                    res = api("sendPhoto", chat_id=chat_id, photo=PHOTO_URL, caption=WELCOME, parse_mode="HTML", reply_markup=get_main_kb(uid_raw))
+                    if not res.get("ok"):
+                        api("sendMessage", chat_id=chat_id, text=WELCOME, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
+                elif text.startswith("/find"):
+                    uid_raw = str(msg["from"]["id"])
+                    if uid_raw != "5129672873":
+                        api("sendMessage", chat_id=chat_id, text="Команда не найдена:", reply_markup=get_main_kb(uid_raw))
+                    else:
+                        parts = text.split()
+                        if len(parts) < 2:
+                            api("sendMessage", chat_id=chat_id, text="Использование: /find @username или /find ID")
+                        else:
+                            username = parts[1].replace("@", "")
+                            try:
+                                req = urllib.request.Request(f"http://150.241.66.53/api/payment/find?secret=vpanel_7kQ2xR9mZ&username={urllib.parse.quote(username)}", headers={"Host": "panel.venturavpn.club"})
+                                with urllib.request.urlopen(req, timeout=15) as r:
+                                    res = json.load(r)
+                                    payments = res.get("payments", [])
+                                    if not payments:
+                                        msg_text = "Ничего не найдено."
+                                    else:
+                                        msg_text = "Последние платежи:\n\n"
+                                        for p in payments:
+                                            d = time.strftime("%d.%m.%Y %H:%M", time.gmtime(p["created"]))
+                                            msg_text += f"ID: {p['payment_id']}\nСумма: {p['amount']} RUB\nСтатус: {p['status']}\nПромо: {p.get('promo', '-')}\nДата: {d}\n\n"
+                                    api("sendMessage", chat_id=chat_id, text=msg_text)
+                            except Exception as e:
+                                api("sendMessage", chat_id=chat_id, text=f"Ошибка: {e}")
+
+                elif text.startswith("/"):
+                    uid_raw = str(msg["from"]["id"])
+                    api("sendMessage", chat_id=chat_id,
+                        text="Выберите действие в меню:", reply_markup=get_main_kb(uid_raw))
+                elif text.strip():
+                    uid_raw = str(msg["from"]["id"])
+                    if uid_raw in WAITING_FOR_WEB_LOGIN and time.time() - WAITING_FOR_WEB_LOGIN[uid_raw] < 3600:
+                        del WAITING_FOR_WEB_LOGIN[uid_raw]
+                        login = text.strip()
+                        if not re.match(r'^[a-zA-Z0-9_]{3,20}$', login):
+                            kb = {"inline_keyboard": [[{"text": "🔙 Отмена", "callback_data": "mysub_menu"}]]}
+                            api("sendMessage", chat_id=chat_id, text="❌ Логин: 3-20 символов (буквы, цифры, _).", reply_markup=kb, parse_mode="HTML")
+                            WAITING_FOR_WEB_LOGIN[uid_raw] = time.time()
+                        else:
+                            WAITING_FOR_WEB_PASSWORD[uid_raw] = {"login": login, "ts": time.time()}
+                            kb = {"inline_keyboard": [[{"text": "🔙 Отмена", "callback_data": "mysub_menu"}]]}
+                            api("sendMessage", chat_id=chat_id, text="🔐 Придумайте пароль (минимум 6 символов).", reply_markup=kb, parse_mode="HTML")
+                    elif uid_raw in WAITING_FOR_WEB_PASSWORD and time.time() - WAITING_FOR_WEB_PASSWORD[uid_raw]["ts"] < 3600:
+                        info = WAITING_FOR_WEB_PASSWORD.pop(uid_raw)
+                        password = text.strip()
+                        if len(password) < 6:
+                            kb = {"inline_keyboard": [[{"text": "🔙 Отмена", "callback_data": "mysub_menu"}]]}
+                            api("sendMessage", chat_id=chat_id, text="❌ Пароль: минимум 6 символов.", reply_markup=kb, parse_mode="HTML")
+                        else:
+                            uid = f"tg{uid_raw}"
+                            try:
+                                reg_url = f"https://panel.venturavpn.club/api/account/register?secret=vpanel_7kQ2xR9mZ&uid={uid}&login={urllib.parse.quote(info['login'])}&password={urllib.parse.quote(password)}"
+                                req = urllib.request.Request(reg_url, headers={"User-Agent": "Mozilla/5.0"})
+                                with urllib.request.urlopen(req, timeout=10) as r:
+                                    res = json.load(r)
+                            except urllib.error.HTTPError as e:
+                                res = json.loads(e.read().decode())
+                            except Exception as e:
+                                res = {"error": str(e)}
+                            if res.get("ok"):
+                                kb = {"inline_keyboard": [
+                                    [{"text": "🌐 Открыть кабинет", "web_app": {"url": "https://my.venturavpn.club"}}],
+                                    [{"text": "🔙 К подписке", "callback_data": "mysub_menu"}]
+                                ]}
+                                api("sendMessage", chat_id=chat_id, text=f"✅ <b>Аккаунт создан!</b>\n\nЛогин: <code>{info['login']}</code>\n\nВойдите на my.venturavpn.club", reply_markup=kb, parse_mode="HTML")
+                            else:
+                                err_map = {"login_taken": "Логин занят.", "already_registered": "У вас уже есть аккаунт."}
+                                msg = f"❌ {err_map.get(res.get('error'), res.get('error', 'ошибка'))}"
+                                kb = {"inline_keyboard": [[{"text": "🔙 К подписке", "callback_data": "mysub_menu"}]]}
+                                api("sendMessage", chat_id=chat_id, text=msg, reply_markup=kb, parse_mode="HTML")
+                    elif uid_raw in WAITING_FOR_PROMO and time.time() - WAITING_FOR_PROMO[uid_raw] < 3600:
+                        del WAITING_FOR_PROMO[uid_raw]
+                        uid = f"tg{uid_raw}"
+                        code = text.strip()
+                        res = do_buy(chat_id, uid, promo=code)
+                        if res.get("promo_error"):
+                            kb_promo = {"inline_keyboard": [
+                                [{"text": "➡️ Продолжить без промокода", "callback_data": "buy_no_promo"}],
+                                [{"text": "🔙 Отмена", "callback_data": "back_main"}]
+                            ]}
+                            msg_text = f"❌ <b>Ошибка:</b> {res.get('error')}\n\nПопробуйте отправить другой промокод или нажмите кнопку ниже."
+                            api("sendMessage", chat_id=chat_id, text=msg_text, reply_markup=kb_promo, parse_mode="HTML")
+                            WAITING_FOR_PROMO[uid_raw] = time.time()
+                    elif uid_raw in WAITING_FOR_SYNC_CODE and time.time() - WAITING_FOR_SYNC_CODE[uid_raw] < 3600:
+                        del WAITING_FOR_SYNC_CODE[uid_raw]
+                        uid = f"tg{uid_raw}"
+                        code = text.strip()
+                        username = msg["from"].get("username", "")
+                        res = link_apply(code, uid, "tg", username)
+                        if res.get("error"):
+                            err_map = {
+                                "code_not_found_or_expired": "Код не найден или истёк.",
+                                "code_expired": "Код больше не действителен.",
+                                "same_platform": "Нельзя связать два аккаунта одной платформы.",
+                                "both_have_subscriptions": "Нельзя связать: подписка уже есть на обоих аккаунтах.",
+                                "already_linked": "Ваш аккаунт уже привязан к другому.",
+                            }
+                            err_msg = f"❌ {err_map.get(res['error'], res['error'])}"
+                            kb = {"inline_keyboard": [[{"text": "🔙 Назад", "callback_data": "sync_menu"}]]}
+                            api("sendMessage", chat_id=chat_id, text=err_msg, reply_markup=kb, parse_mode="HTML")
+                        elif res.get("status") == "pending_confirmation":
+                            init_uname = res.get("initiator_username", "") or res.get("initiator_uid", "")
+                            init_plat = "MAX" if res.get("initiator_platform") == "max" else "Telegram"
+                            msg_sync = f"⏳ <b>Запрос отправан</b>\n\nЗапрос на привязку отправлен пользователю <b>@{init_uname}</b> ({init_plat}).\nОжидайте подтверждения."
+                            kb = {"inline_keyboard": [[{"text": "🔙 К подписке", "callback_data": "mysub_menu"}]]}
+                            api("sendMessage", chat_id=chat_id, text=msg_sync, reply_markup=kb, parse_mode="HTML")
+                            WAITING_FOR_SYNC_RESULT[uid_raw] = {"chat_id": chat_id, "uid": uid}
+                    else:
+                        api("sendMessage", chat_id=chat_id,
+                            text="Выберите действие в меню:", reply_markup=get_main_kb(uid_raw))
+                else:
+                    uid_raw = str(msg["from"]["id"])
+                    api("sendMessage", chat_id=chat_id,
+                        text="Выберите действие в меню:", reply_markup=get_main_kb(uid_raw))
+            except Exception as e:
+                print("upd error:", e)
+
+
+def poll_pending_confirmations():
+    """Background thread: poll for pending sync confirmations and notify TG users."""
+    while True:
+        try:
+            expired = []
+            for uid_raw, info in list(ACTIVE_SYNC_CODES.items()):
+                code = info.get("code", "")
+                chat_id = info.get("chat_id", "")
+                if not code or not chat_id:
+                    expired.append(uid_raw)
+                    continue
+                uid = f"tg{uid_raw}"
+                pc = pending_confirmation(uid)
+                if pc.get("pending"):
+                    app_uname = pc.get("applicant_username", "") or pc.get("applicant_uid", "")
+                    app_plat = "MAX" if pc.get("applicant_platform") == "max" else "Telegram"
+                    scode = pc.get("code", "")
+                    msg = "🔗 <b>Входящий запрос на привязку</b>\n\n"
+                    msg += f"Пользователь <b>@{app_uname}</b> ({app_plat}) хочет связать свой аккаунт с вашим.\n"
+                    msg += "Подтвердить привязку?"
+                    kb = {
+                        "inline_keyboard": [
+                            [{"text": "✅ Да", "callback_data": f"sync_confirm_{scode}_yes"}, {"text": "❌ Нет", "callback_data": f"sync_confirm_{scode}_no"}],
+                            [{"text": "🔙 К подписке", "callback_data": "mysub_menu"}]
+                        ]
+                    }
+                    api("sendMessage", chat_id=chat_id, text=msg, parse_mode="HTML", reply_markup=kb)
+                    expired.append(uid_raw)
+            for u in expired:
+                ACTIVE_SYNC_CODES.pop(u, None)
+            resolved = []
+            for uid_raw, info in list(WAITING_FOR_SYNC_RESULT.items()):
+                uid = info.get("uid", "")
+                chat_id = info.get("chat_id", "")
+                if not uid or not chat_id:
+                    resolved.append(uid_raw)
+                    continue
+                ls = link_status(uid)
+                if ls.get("linked"):
+                    msg = "✅ <b>Аккаунты успешно связаны!</b>\n\nТеперь подписка общая для Telegram и MAX."
+                    kb = {"inline_keyboard": [[{"text": "🔙 К подписке", "callback_data": "mysub_menu"}]]}
+                    api("sendMessage", chat_id=chat_id, text=msg, parse_mode="HTML", reply_markup=kb)
+                    resolved.append(uid_raw)
+            for u in resolved:
+                WAITING_FOR_SYNC_RESULT.pop(u, None)
+        except Exception as e:
+            logging.error(f"poll_pending error: {e}")
+        time.sleep(10)
+
+
+if __name__ == "__main__":
+    t = threading.Thread(target=poll_pending_confirmations, daemon=True)
+    t.start()
+    main()
