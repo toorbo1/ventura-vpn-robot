@@ -156,6 +156,39 @@ def get_sub_status(uid):
     except:
         return {"active": False, "has_sub": False, "expires": 0, "devices": [], "max_devices": 5, "cid": ""}
 
+def format_subscription_end_date(expires_timestamp):
+    """Форматирует timestamp в читаемую дату окончания подписки."""
+    if not expires_timestamp or expires_timestamp == 0:
+        return "неизвестно"
+    try:
+        end_date = time.strftime('%d %B %Y', time.localtime(expires_timestamp))
+        # Убираем ведущий ноль у дня для русского языка
+        day = str(int(time.strftime('%d', time.localtime(expires_timestamp))))
+        month_year = time.strftime(' %B %Y', time.localtime(expires_timestamp))
+        return day + month_year
+    except:
+        return "неизвестно"
+
+def get_subscription_details(uid):
+    """Получает детальную информацию о подписке пользователя."""
+    status = get_sub_status(uid)
+    if not status.get("has_sub") and not status.get("active"):
+        return None
+
+    expires = status.get("expires", 0)
+    devices_count = len(status.get("devices", []))
+    max_devices = status.get("max_devices", 5)
+
+    return {
+        "active": status.get("active", False),
+        "has_sub": status.get("has_sub", False),
+        "expires": expires,
+        "end_date_str": format_subscription_end_date(expires),
+        "devices_used": devices_count,
+        "max_devices": max_devices,
+        "days_left": max(0, (expires - int(time.time())) // 86400) if expires else 0
+    }
+
 def delete_device(cid, hwid):
     try:
         req = urllib.request.Request(
@@ -221,6 +254,31 @@ NEW_WELCOME = """Привееетик! 👋
 1️⃣ Жмякай «🧪 Тест-драйв VPN»
 2️⃣ Вставляй ключик
 3️⃣ Ту-ту-туууу... наслаждайся свободным интернетом 🎉"""
+
+# Сообщение для пользователя БЕЗ подписки (или с истекшей)
+NO_SUBSCRIPTION_MSG = """Привееет! Каролина на связи ✨
+
+Скажи «нет» блокировкам и «да» скорости!
+VenturaVPN — топ-1 VPN в РФ, и я знаю, почему:
+
+🌍 серверы по всему миру
+⚡️ суперскорость
+🛡️ твоя приватность — наш приоритет
+💰 цены, которые радуют
+
+Готов начать? Просто выбери тариф и жми «Подключиться» 😉"""
+
+# Сообщение для пользователя С АКТИВНОЙ подпиской
+ACTIVE_SUBSCRIPTION_MSG = """Твоя подписка на VenturaVPN уже активна!
+Вот что у тебя сейчас:
+
+📆 Подписка: {days_left} дней
+📱 Устройств: до {max_devices}
+⏳ Действует до: {end_date}
+
+Наслаждайся свободным интернетом, быстрой скоростью и надёжной защитой 😉
+
+Если будут вопросы — я рядом ❤️"""
 def get_main_kb(uid_raw):
     uid = f"tg{uid_raw}"
     status = get_sub_status(uid)
@@ -568,8 +626,26 @@ def main():
                     elif data == "back_main":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        safe_edit(chat, cq["message"],
-                            text=WELCOME, parse_mode="HTML", reply_markup=get_main_kb(uid_raw))
+                        is_test_user = (uid_raw == TEST_USER_ID)
+
+                        # Get subscription status
+                        uid_for_api = f"tg{uid_raw}"
+                        sub_details = get_subscription_details(uid_for_api)
+
+                        if is_test_user:
+                            # Determine which message to show based on subscription status
+                            if sub_details and sub_details.get("has_sub"):
+                                welcome_text = ACTIVE_SUBSCRIPTION_MSG.format(
+                                    days_left=sub_details["days_left"],
+                                    max_devices=sub_details["max_devices"],
+                                    end_date=sub_details["end_date_str"]
+                                )
+                            else:
+                                welcome_text = NO_SUBSCRIPTION_MSG
+                            safe_edit(chat, cq["message"], text=welcome_text, reply_markup=get_main_kb(uid_raw))
+                        else:
+                            safe_edit(chat, cq["message"],
+                                text=WELCOME, parse_mode="HTML", reply_markup=get_main_kb(uid_raw))
 
                     elif data == "sync_menu":
                         frm = cq.get("from", {})
@@ -833,11 +909,28 @@ def main():
                     # Check if test user for new design
                     is_test_user = (uid_raw == TEST_USER_ID)
 
+                    # Get subscription status
+                    uid_for_api = f"tg{uid_raw}"
+                    sub_details = get_subscription_details(uid_for_api)
+
                     if is_test_user:
                         # New design: send sticker first, then message
                         STICKER_ID = "CAACAgEAAxkBAAEF3HhqbhZvJWm-aqcFrnAy9S2lK1Xa4gACggoAApH6aEfLT1-_Y898yj0E"
                         api("sendSticker", chat_id=chat_id, sticker=STICKER_ID)
-                        api("sendMessage", chat_id=chat_id, text=NEW_WELCOME, reply_markup=get_main_kb(uid_raw))
+
+                        # Determine which welcome message to show based on subscription status
+                        if sub_details and sub_details.get("has_sub"):
+                            # User has active subscription
+                            welcome_text = ACTIVE_SUBSCRIPTION_MSG.format(
+                                days_left=sub_details["days_left"],
+                                max_devices=sub_details["max_devices"],
+                                end_date=sub_details["end_date_str"]
+                            )
+                        else:
+                            # User has no subscription or it expired
+                            welcome_text = NO_SUBSCRIPTION_MSG
+
+                        api("sendMessage", chat_id=chat_id, text=welcome_text, reply_markup=get_main_kb(uid_raw))
                     else:
                         PHOTO_URL = "https://venturavpn.club/bot-banner.jpg"
                         res = api("sendPhoto", chat_id=chat_id, photo=PHOTO_URL, caption=WELCOME, parse_mode="HTML", reply_markup=get_main_kb(uid_raw))
