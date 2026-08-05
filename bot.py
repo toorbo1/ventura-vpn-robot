@@ -504,10 +504,8 @@ def log_key_request(frm):
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 
-def do_buy(chat, uid, promo="", msg=None):
+def do_buy(chat, uid, promo=""):
     uid_raw = uid.replace("tg", "")
-    is_test_user = (uid_raw == TEST_USER_ID)
-
     try:
         url = f"http://150.241.66.53/api/payment/bot_create?secret=vpanel_7kQ2xR9mZ&uid={uid}"
         if promo:
@@ -523,24 +521,17 @@ def do_buy(chat, uid, promo="", msg=None):
                     return {"error": body.get("error", "Промокод недействителен"), "promo_error": True}
             except Exception:
                 pass
-            if msg and is_test_user:
-                safe_edit(chat, msg, text=f"Ошибка сервера платежей: {e}")
-            else:
-                api("sendMessage", chat_id=chat, text=f"Ошибка сервера платежей: {e}")
+            api("sendMessage", chat_id=chat, text=f"Ошибка сервера платежей: {e}")
             return {"error": str(e)}
         with r:
             res = json.load(r)
             if res.get("promo_error"):
                 return {"error": res.get("error"), "promo_error": True}
-
+            
             pay_url = res.get("pay_url")
             if pay_url:
                 if pay_url == "free":
-                    success_text = "🎉 Ваша подписка успешно активирована бесплатно! Нажмите «Моя подписка»."
-                    if msg and is_test_user:
-                        safe_edit(chat, msg, text=success_text, reply_markup=get_main_kb(uid_raw))
-                    else:
-                        api("sendMessage", chat_id=chat, text=success_text, reply_markup=get_main_kb(uid_raw))
+                    api("sendMessage", chat_id=chat, text="🎉 Ваша подписка успешно активирована бесплатно! Нажмите «Моя подписка».", reply_markup=get_main_kb(uid_raw))
                 else:
                     kb_pay = {"inline_keyboard": [
                         [{"text": f"💳 Оплатить ({res.get('amount')} ₽)", "url": pay_url}],
@@ -551,16 +542,10 @@ def do_buy(chat, uid, promo="", msg=None):
                         msg_text = f"✅ Промокод <b>{promo}</b> успешно применен!\n\nДля оформления подписки перейдите по персональной ссылке ниже."
                     else:
                         msg_text = "Для оформления подписки перейдите по персональной ссылке ниже."
-                    if msg and is_test_user:
-                        safe_edit(chat, msg, text=msg_text, reply_markup=kb_pay, parse_mode="HTML")
-                    else:
-                        api("sendMessage", chat_id=chat, text=msg_text, reply_markup=kb_pay, parse_mode="HTML")
+                    api("sendMessage", chat_id=chat, text=msg_text, reply_markup=kb_pay, parse_mode="HTML")
                 return {"ok": True}
             else:
-                if msg and is_test_user:
-                    safe_edit(chat, msg, text="Ошибка создания платежа. Попробуйте позже.")
-                else:
-                    api("sendMessage", chat_id=chat, text="Ошибка создания платежа. Попробуйте позже.")
+                api("sendMessage", chat_id=chat, text="Ошибка создания платежа. Попробуйте позже.")
                 return {"error": "no pay url"}
     except Exception as e:
         api("sendMessage", chat_id=chat, text=f"Ошибка сервера платежей: {e}")
@@ -806,7 +791,7 @@ def main():
                         uid_raw = str(frm.get("id"))
                         is_test_user = (uid_raw == TEST_USER_ID)
                         if is_test_user:
-                            safe_edit(chat, cq["message"], text=ADMIN_MSG, parse_mode="HTML", reply_markup=ADMIN_KB)
+                            api("sendMessage", chat_id=chat, text=ADMIN_MSG, parse_mode="HTML", reply_markup=ADMIN_KB)
                         else:
                             api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
 
@@ -820,7 +805,7 @@ def main():
 Введите текст сообщения:
 (отправьте /cancel для отмены)"""
                             kb = {"inline_keyboard": [[{"text": "❌ Отмена", "callback_data": "admin_panel"}]]}
-                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", reply_markup=kb)
+                            api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML", reply_markup=kb)
                             # Set flag for waiting broadcast message
                             WAITING_FOR_BROADCAST[uid_raw] = True
                         else:
@@ -832,7 +817,7 @@ def main():
                         is_test_user = (uid_raw == TEST_USER_ID)
                         if is_test_user:
                             # Here you would implement bot stop logic
-                            safe_edit(chat, cq["message"], text="⏹ Бот остановлен для всех пользователей", reply_markup=ADMIN_KB)
+                            api("sendMessage", chat_id=chat, text="⏹ Бот остановлен для всех пользователей", reply_markup=ADMIN_KB)
                         else:
                             api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
 
@@ -842,7 +827,7 @@ def main():
                         is_test_user = (uid_raw == TEST_USER_ID)
                         if is_test_user:
                             # Here you would implement bot start logic
-                            safe_edit(chat, cq["message"], text="▶️ Бот запущен для всех пользователей", reply_markup=ADMIN_KB)
+                            api("sendMessage", chat_id=chat, text="▶️ Бот запущен для всех пользователей", reply_markup=ADMIN_KB)
                         else:
                             api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
 
@@ -854,7 +839,7 @@ def main():
                             # Получаем полную статистику
                             full_stats = get_full_bot_stats()
                             stats_msg = format_stats_message(full_stats)
-                            safe_edit(chat, cq["message"], text=stats_msg, parse_mode="HTML", reply_markup=ADMIN_KB)
+                            api("sendMessage", chat_id=chat, text=stats_msg, parse_mode="HTML", reply_markup=ADMIN_KB)
                         else:
                             api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
 
@@ -1054,7 +1039,7 @@ def main():
                         if uid_raw in WAITING_FOR_PROMO:
                             del WAITING_FOR_PROMO[uid_raw]
                         uid = f"tg{uid_raw}"
-                        do_buy(chat, uid, msg=cq["message"])
+                        do_buy(chat, uid)
                     elif data == "enter_promo":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get('id'))
@@ -1083,10 +1068,10 @@ VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис
 📱 <b>Поддержка всех популярных устройств</b>
 
 <i>VenturaVPN — когда нужен интернет таким, каким он должен быть.</i>"""
-                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
+                            api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
                         else:
                             msg = "ℹ️ <b>Информация</b>\n\n<a href='https://venturavpn.club/polzovatelskoe-soglashenie.html'>📄 Соглашение</a>\n<a href='https://venturavpn.club/politika-konfidencialnosti.html'>🔒 Конфиденциальность</a>"
-                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
+                            api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
 
                     elif data == "setup_iphone":
                         frm = cq.get("from", {})
