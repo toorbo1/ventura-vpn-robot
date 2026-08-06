@@ -1178,11 +1178,7 @@ VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис
                     sub_details = get_subscription_details(uid_for_api)
 
                     if is_test_user:
-                        # New design: send sticker first, then message
-                        STICKER_ID = "CAACAgEAAxkBAAEF3HhqbhZvJWm-aqcFrnAy9S2lK1Xa4gACggoAApH6aEfLT1-_Y898yj0E"
-                        api("sendSticker", chat_id=chat_id, sticker=STICKER_ID)
-
-                        # Determine which welcome message to show based on subscription status
+                        # New design: determine which message to show based on subscription status
                         if sub_details and sub_details.get("has_sub"):
                             # User has active subscription
                             welcome_text = ACTIVE_SUBSCRIPTION_MSG.format(
@@ -1194,6 +1190,7 @@ VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис
                             # User has no subscription or it expired
                             welcome_text = NO_SUBSCRIPTION_MSG
 
+                        # Отправляем новое сообщение (стикер не отправляем при повторном /start)
                         api("sendMessage", chat_id=chat_id, text=welcome_text, reply_markup=get_main_kb(uid_raw))
                     else:
                         PHOTO_URL = "https://venturavpn.club/bot-banner.jpg"
