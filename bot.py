@@ -34,6 +34,8 @@ WAITING_FOR_BROADCAST = {}  # Для админ панели
 
 # Test user for new design
 TEST_USER_ID = "5302383529"  # @first1523
+TEST_USER_2 = ""  # @XABHy_XAN - добавьте ID когда он напишет /start
+TEST_USERS = {TEST_USER_ID, TEST_USER_2} if TEST_USER_2 else {TEST_USER_ID}
 
 # Admin panel texts
 ADMIN_MSG = """👑 <b>Админ панель</b>
@@ -338,7 +340,7 @@ def delete_device(cid, hwid):
 
 
 def key_message(uid_raw=""):
-    is_test_user = (uid_raw == TEST_USER_ID)
+    is_test_user = (uid_raw in TEST_USERS)
     if is_test_user:
         return (
             "🔑 Ваша персональная подписка\n\n"
@@ -421,7 +423,7 @@ def get_main_kb(uid_raw):
     has_sub = status.get("has_sub", False)
 
     # Check if user is test user for new design
-    is_test_user = (uid_raw == TEST_USER_ID)
+    is_test_user = (uid_raw in TEST_USERS)
 
     if is_test_user:
         # New design buttons
@@ -452,7 +454,7 @@ def get_main_kb(uid_raw):
 
 def get_mysub_kb(status, uid_raw=""):
     kb = []
-    is_test_user = (uid_raw == TEST_USER_ID)
+    is_test_user = (uid_raw in TEST_USERS)
 
     # If no subscription ever, show trial
     if not status.get("has_sub"):
@@ -581,7 +583,7 @@ def main():
                         uid_raw = str(frm.get('id'))
                         uid = f"tg{uid_raw}"
                         status = get_sub_status(uid)
-                        is_test_user = (uid_raw == TEST_USER_ID)
+                        is_test_user = (uid_raw in TEST_USERS)
 
                         # New design for test user
                         if is_test_user:
@@ -740,7 +742,7 @@ def main():
                         url = issue_key(uid, username)
                         if url:
                             # New design buttons for test user
-                            is_test_user = (uid_raw == TEST_USER_ID)
+                            is_test_user = (uid_raw in TEST_USERS)
                             kb_buttons = []
                             if is_test_user:
                                 kb_buttons = [
@@ -764,7 +766,7 @@ def main():
                     elif data == "back_main":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw == TEST_USER_ID)
+                        is_test_user = (uid_raw in TEST_USERS)
 
                         # Get subscription status
                         uid_for_api = f"tg{uid_raw}"
@@ -789,7 +791,7 @@ def main():
                     elif data == "admin_panel":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw == TEST_USER_ID)
+                        is_test_user = (uid_raw in TEST_USERS)
                         if is_test_user:
                             safe_edit(chat, cq["message"], text=ADMIN_MSG, parse_mode="HTML", reply_markup=ADMIN_KB)
                         else:
@@ -798,7 +800,7 @@ def main():
                     elif data == "admin_broadcast":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw == TEST_USER_ID)
+                        is_test_user = (uid_raw in TEST_USERS)
                         if is_test_user:
                             msg = """📢 <b>Отправить сообщение всем пользователям</b>
 
@@ -814,7 +816,7 @@ def main():
                     elif data == "admin_stop":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw == TEST_USER_ID)
+                        is_test_user = (uid_raw in TEST_USERS)
                         if is_test_user:
                             # Here you would implement bot stop logic
                             safe_edit(chat, cq["message"], text="⏹ Бот остановлен для всех пользователей", reply_markup=ADMIN_KB)
@@ -824,7 +826,7 @@ def main():
                     elif data == "admin_start":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw == TEST_USER_ID)
+                        is_test_user = (uid_raw in TEST_USERS)
                         if is_test_user:
                             # Here you would implement bot start logic
                             api("sendMessage", chat_id=chat, text="▶️ Бот запущен для всех пользователей", reply_markup=ADMIN_KB)
@@ -834,7 +836,7 @@ def main():
                     elif data == "admin_stats":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw == TEST_USER_ID)
+                        is_test_user = (uid_raw in TEST_USERS)
                         if is_test_user:
                             # Получаем полную статистику
                             full_stats = get_full_bot_stats()
@@ -936,7 +938,7 @@ def main():
                         url = issue_trial(uid, username)
                         if url:
                             # New design buttons for test user
-                            is_test_user = (uid_raw == TEST_USER_ID)
+                            is_test_user = (uid_raw in TEST_USERS)
                             if is_test_user:
                                 kb = {"inline_keyboard": [
                                     [{"text": "Подключить", "url": url}],
@@ -956,7 +958,7 @@ def main():
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get('id'))
                         stats = get_ref_stats(uid_raw)
-                        is_test_user = (uid_raw == TEST_USER_ID)
+                        is_test_user = (uid_raw in TEST_USERS)
 
                         # New design for test user
                         if is_test_user:
@@ -1050,7 +1052,7 @@ def main():
                     elif data == "info":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw == TEST_USER_ID)
+                        is_test_user = (uid_raw in TEST_USERS)
                         if is_test_user:
                             msg = """<b>VenturaVPN — интернет без границ.</b>
 
@@ -1079,7 +1081,7 @@ VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис
                         # Возвращаемся к главному меню - редактируем сообщение
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw == TEST_USER_ID)
+                        is_test_user = (uid_raw in TEST_USERS)
 
                         if is_test_user:
                             STICKER_ID = "CAACAgEAAxkBAAEF3HhqbhZvJWm-aqcFrnAy9S2lK1Xa4gACggoAApH6aEfLT1-_Y898yj0E"
@@ -1171,14 +1173,30 @@ VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис
                         add_referral(uid_raw, referrer)
 
                     # Check if test user for new design
-                    is_test_user = (uid_raw == TEST_USER_ID)
+                    is_test_user = (uid_raw in TEST_USERS)
 
                     # Get subscription status
                     uid_for_api = f"tg{uid_raw}"
                     sub_details = get_subscription_details(uid_for_api)
 
                     if is_test_user:
-                        # New design: determine which message to show based on subscription status
+                        # New design: send sticker first (only once), then message
+                        STICKER_ID = "CAACAgEAAxkBAAEF3HhqbhZvJWm-aqcFrnAy9S2lK1Xa4gACggoAApH6aEfLT1-_Y898yj0E"
+                        # Проверяем есть ли уже сообщение от бота в этом чате
+                        has_existing_msg = False
+                        try:
+                            # Получаем последние сообщения из этого чата
+                            resp = api("getChat", chat_id=chat_id)
+                            if resp.get("ok"):
+                                has_existing_msg = True
+                        except:
+                            pass
+
+                        # Отправляем стикер только если это первое сообщение
+                        if not has_existing_msg:
+                            api("sendSticker", chat_id=chat_id, sticker=STICKER_ID)
+
+                        # Determine which message to show based on subscription status
                         if sub_details and sub_details.get("has_sub"):
                             # User has active subscription
                             welcome_text = ACTIVE_SUBSCRIPTION_MSG.format(
@@ -1190,7 +1208,6 @@ VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис
                             # User has no subscription or it expired
                             welcome_text = NO_SUBSCRIPTION_MSG
 
-                        # Отправляем новое сообщение (стикер не отправляем при повторном /start)
                         api("sendMessage", chat_id=chat_id, text=welcome_text, reply_markup=get_main_kb(uid_raw))
                     else:
                         PHOTO_URL = "https://venturavpn.club/bot-banner.jpg"
