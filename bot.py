@@ -980,7 +980,7 @@ def main():
                                 [{"text": "Поддержка", "url": "https://t.me/ventura_sup"}],
                                 [{"text": "Назад", "callback_data": "back_main"}]
                             ]}
-                            api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML", reply_markup=kb)
+                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", reply_markup=kb)
                         else:
                             global BOT_USERNAME
                             if BOT_USERNAME is None:
@@ -1020,7 +1020,7 @@ def main():
                                 msg += "<i>(Вы и ваш друг получаете по +5 дней, когда он впервые оплачивает подписку)</i>\n\n"
                                 msg += "Хотите стать партнёром и получать деньги? Напишите в техподдержку."
 
-                            api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML",
+                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML",
                                 disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
                     elif data == "buy":
                         frm = cq.get("from", {})
@@ -1032,7 +1032,7 @@ def main():
                             [{"text": "🔙 Отмена", "callback_data": "back_main"}]
                         ]}
                         msg_text = "🎁 <b>У вас есть промокод?</b>\n\nЕсли да, отправьте его ответным сообщением прямо сейчас 👇\n\nЕсли промокода нет, нажмите кнопку «Продолжить без промокода»."
-                        api("sendMessage", chat_id=chat, text=msg_text, reply_markup=kb_promo, parse_mode="HTML")
+                        safe_edit(chat, cq["message"], text=msg_text, reply_markup=kb_promo, parse_mode="HTML")
                     elif data == "buy_no_promo":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get('id'))
@@ -1045,7 +1045,7 @@ def main():
                         uid_raw = str(frm.get('id'))
                         WAITING_FOR_PROMO[uid_raw] = time.time()
                         kb_promo = {"inline_keyboard": [[{"text": "🔙 Отмена", "callback_data": "back_main"}]]}
-                        api("sendMessage", chat_id=chat, text="🎁 <b>Отправьте ваш промокод</b> ответным сообщением прямо сейчас 👇", reply_markup=kb_promo, parse_mode="HTML")
+                        safe_edit(chat, cq["message"], text="🎁 <b>Отправьте ваш промокод</b> ответным сообщением прямо сейчас 👇", reply_markup=kb_promo, parse_mode="HTML")
                     
                     elif data == "info":
                         frm = cq.get("from", {})
