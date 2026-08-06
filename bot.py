@@ -1068,10 +1068,19 @@ VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис
 📱 <b>Поддержка всех популярных устройств</b>
 
 <i>VenturaVPN — когда нужен интернет таким, каким он должен быть.</i>"""
-                            api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
+                            # Редактируем сообщение вместо создания нового
+                            kb = {"inline_keyboard": [[{"text": "❌ Выход", "callback_data": "info_exit"}]]}
+                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=kb)
                         else:
                             msg = "ℹ️ <b>Информация</b>\n\n<a href='https://venturavpn.club/polzovatelskoe-soglashenie.html'>📄 Соглашение</a>\n<a href='https://venturavpn.club/politika-konfidencialnosti.html'>🔒 Конфиденциальность</a>"
                             api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
+
+                    elif data == "info_exit":
+                        # Удаляем сообщение при нажатии "Выход"
+                        try:
+                            api("deleteMessage", chat_id=chat, message_id=cq["message"]["message_id"])
+                        except Exception:
+                            pass
 
                     elif data == "setup_iphone":
                         frm = cq.get("from", {})
