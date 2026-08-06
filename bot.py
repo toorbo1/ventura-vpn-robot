@@ -1180,21 +1180,9 @@ VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис
                     sub_details = get_subscription_details(uid_for_api)
 
                     if is_test_user:
-                        # New design: send sticker first (only once), then message
+                        # New design: send sticker first, then message
                         STICKER_ID = "CAACAgEAAxkBAAEF3HhqbhZvJWm-aqcFrnAy9S2lK1Xa4gACggoAApH6aEfLT1-_Y898yj0E"
-                        # Проверяем есть ли уже сообщение от бота в этом чате
-                        has_existing_msg = False
-                        try:
-                            # Получаем последние сообщения из этого чата
-                            resp = api("getChat", chat_id=chat_id)
-                            if resp.get("ok"):
-                                has_existing_msg = True
-                        except:
-                            pass
-
-                        # Отправляем стикер только если это первое сообщение
-                        if not has_existing_msg:
-                            api("sendSticker", chat_id=chat_id, sticker=STICKER_ID)
+                        api("sendSticker", chat_id=chat_id, sticker=STICKER_ID)
 
                         # Determine which message to show based on subscription status
                         if sub_details and sub_details.get("has_sub"):
