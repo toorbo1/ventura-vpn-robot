@@ -1073,7 +1073,7 @@ VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис
                             safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=kb)
                         else:
                             msg = "ℹ️ <b>Информация</b>\n\n<a href='https://venturavpn.club/polzovatelskoe-soglashenie.html'>📄 Соглашение</a>\n<a href='https://venturavpn.club/politika-konfidencialnosti.html'>🔒 Конфиденциальность</a>"
-                            api("sendMessage", chat_id=chat, text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
+                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
 
                     elif data == "info_back":
                         # Возвращаемся к главному меню - редактируем сообщение
