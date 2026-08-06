@@ -34,8 +34,8 @@ WAITING_FOR_BROADCAST = {}  # Для админ панели
 
 # Test user for new design
 TEST_USER_ID = "5302383529"  # @first1523
-TEST_USER_2 = ""  # @XABHy_XAN - добавьте ID когда он напишет /start
-TEST_USERS = {TEST_USER_ID, TEST_USER_2} if TEST_USER_2 else {TEST_USER_ID}
+TEST_USER_2 = "5129672873"  # @XABHy_XAN
+TEST_USERS = {TEST_USER_ID, TEST_USER_2}
 
 # Admin panel texts
 ADMIN_MSG = """👑 <b>Админ панель</b>
