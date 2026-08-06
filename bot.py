@@ -433,7 +433,7 @@ def get_main_kb(uid_raw):
         # Add admin panel button for test user
         return {"inline_keyboard": [
             row1,
-            [{"text": "🎁Есть код?", "callback_data": "enter_promo"}, {"text": "💰зови друзей", "callback_data": "partner"}],
+            [{"text": "🎫 Промокоды", "callback_data": "enter_promo"}, {"text": "💰зови друзей", "callback_data": "partner"}],
             [{"text": "Каролина, помоги", "url": "https://t.me/ventura_sup"}, {"text": "О Ventura", "callback_data": "info"}],
             [{"text": "👑 Админ панель", "callback_data": "admin_panel"}]  # Admin panel button
         ]}
