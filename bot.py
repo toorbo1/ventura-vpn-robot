@@ -888,7 +888,6 @@ VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис
 <i>VenturaVPN — когда нужен интернет таким, каким он должен быть.</i>"""
                         kb = {"inline_keyboard": [[{"text": "🔙 Назад", "callback_data": "info_back"}]]}
                         safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=kb)
-                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
 
                     elif data == "info_back":
                         frm = cq.get("from", {})
