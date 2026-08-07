@@ -359,21 +359,6 @@ WELCOME = """Привееетик! 👋
 2️⃣ Вставляй ключик
 3️⃣ Ту-ту-туууу... наслаждайся свободным интернетом 🎉"""
 
-# New design for test user @first1523 (ID: 5302383529)
-NEW_WELCOME = """Привееетик! 👋
-
-Я Каролина ✨
-
-Этот бот проооосто классссный: куча серверов, быстрый интернет, хорошая поддержка и оооочень приятные цены
-
-И это только начало... дальше будет ещё круче 😏
-
-Ну что, погнали? 🚀
-
-1️⃣ Жмякай «🧪 Тест-драйв VPN»
-2️⃣ Вставляй ключик
-3️⃣ Ту-ту-туууу... наслаждайся свободным интернетом 🎉"""
-
 # Сообщение для пользователя БЕЗ подписки (или с истекшей)
 NO_SUBSCRIPTION_MSG = """Привееет! Каролина на связи ✨
 
@@ -1025,8 +1010,6 @@ VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис
                         welcome_text = NO_SUBSCRIPTION_MSG
 
                     api("sendMessage", chat_id=chat_id, text=welcome_text, reply_markup=get_main_kb(uid_raw))
-                        if not res.get("ok"):
-                            api("sendMessage", chat_id=chat_id, text=WELCOME, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
                 elif text.startswith("/find"):
                     uid_raw = str(msg["from"]["id"])
                     if uid_raw != "5129672873":
