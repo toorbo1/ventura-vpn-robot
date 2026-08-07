@@ -340,43 +340,24 @@ def delete_device(cid, hwid):
 
 
 def key_message(uid_raw=""):
-    is_test_user = (uid_raw in TEST_USERS)
-    if is_test_user:
-        return (
-            "🔑 Ваша персональная подписка\n\n"
-            "Нажмите кнопку 'Подключить', чтобы автоматически запустить приложение."
-        )
-    else:
-        return (
-            "🔑 <b>Ваша персональная подписка</b>\n\n"
-            "Нажмите кнопку <b>🚀 Подключить</b> ниже, чтобы автоматически добавить серверы в приложение.\n\n"
-            "<b>Инструкция по подключению:</b>\n"
-            "1. Установите приложение <b>HAPP</b> из App Store / Google Play.\n"
-            "2. Нажмите на кнопку <b>🚀 Подключить</b> под этим сообщением.\n"
-            "3. В приложении перейдите в <b>⚙️ Настройки</b> -> <b>«Подписки»</b> и выберите <b>Сортировать по пингу</b>.\n"
-            "4. Выйдите в главное меню и нажмите кнопку подключения! 🚀\n\n"
-            "📱 <b>На iPhone:</b> если HApp не открылся автоматически, нажмите «Скопировать ссылку» на открывшейся странице, "
-            "затем откройте HApp → ☰ → «Подписки» → «+ Добавить» и вставьте ссылку."
-        )
+    return (
+        "🔑 Ваша персональная подписка\n\n"
+        "Нажмите кнопку 'Подключить', чтобы автоматически запустить приложение."
+    )
 
-WELCOME = """Привет!.
+WELCOME = """Привееетик! 👋
 
-Мы даём доступ к сети без ограничений и блокировок. Наша главная фишка — высокая скорость, потому что мы не экономим на серверах и используем собственные белые списки IP-адресов (доверенные, чистые адреса, которые не блокируются).
+Я Каролина ✨
 
-<b>Что тебя ждёт:</b>
-✅ Обход любых блокировок (РКН и другие) — подключайся и забывай.
-✅ Множество серверов по всему миру — стабильное соединение всегда.
-✅ Максимальная скорость — идеально для игр, стримов и работы.
-✅ Telegram-канал с эксклюзивными материалами — <a href='https://t.me/venturaVPN'>@venturaVPN</a> (подпишись, чтобы быть в курсе!).
+Этот бот проооосто классссный: куча серверов, быстрый интернет, хорошая поддержка и оооочень приятные цены
 
-🚀 <b>А в будущем станет ещё круче:</b>
-🔹 Нативное приложение — ещё проще и быстрее.
-🔹 Встроенный ИИ — для умной маршрутизации трафика
-🔹 Супер скидки и предложения
+И это только начало... дальше будет ещё круче 😏
 
-Старт — в один клик! 👇
+Ну что, погнали? 🚀
 
-Нажми кнопку «Тестовая подписка» и получи доступ прямо сейчас. Бот скоро станет твоим незаменимым помощником 🚀"""
+1️⃣ Жмякай «🧪 Тест-драйв VPN»
+2️⃣ Вставляй ключик
+3️⃣ Ту-ту-туууу... наслаждайся свободным интернетом 🎉"""
 
 # New design for test user @first1523 (ID: 5302383529)
 NEW_WELCOME = """Привееетик! 👋
@@ -422,39 +403,21 @@ def get_main_kb(uid_raw):
     status = get_sub_status(uid)
     has_sub = status.get("has_sub", False)
 
-    # Check if user is test user for new design
-    is_test_user = (uid_raw in TEST_USERS)
-
-    if is_test_user:
-        # New design buttons
-        if has_sub:
-            row1 = [{"text": "💎 Подписка", "callback_data": "mysub_menu"}]
-        else:
-            row1 = [{"text": "🧪 Тест-драйв VPN", "callback_data": "trial"}]
-
-        # Add admin panel button for test user
-        return {"inline_keyboard": [
-            row1,
-            [{"text": "🎁Есть код?", "callback_data": "enter_promo"}, {"text": "💰зови друзей", "callback_data": "partner"}],
-            [{"text": "Каролина, помоги", "url": "https://t.me/ventura_sup"}, {"text": "О Ventura", "callback_data": "info"}],
-            [{"text": "👑 Админ панель", "callback_data": "admin_panel"}]  # Admin panel button
-        ]}
+    # New design for all users
+    if has_sub:
+        row1 = [{"text": "💎 Подписка", "callback_data": "mysub_menu"}]
     else:
-        # Old design
-        if has_sub:
-            row1 = [{"text": "💎 Моя подписка", "callback_data": "mysub_menu"}]
-        else:
-            row1 = [{"text": "🧪 Тестовая подписка", "callback_data": "trial"}, {"text": "💎 Купить подписку", "callback_data": "buy"}]
+        row1 = [{"text": "🧪 Тест-драйв VPN", "callback_data": "trial"}]
 
-        return {"inline_keyboard": [
-            row1,
-            [{"text": "🎫 Промокоды", "callback_data": "enter_promo"}, {"text": "🤝 Партнерка", "callback_data": "partner"}],
-            [{"text": "🛠 Техподдержка", "url": "https://t.me/ventura_sup"}, {"text": "ℹ️ Инфо", "callback_data": "info"}],
-        ]}
+    return {"inline_keyboard": [
+        row1,
+        [{"text": "🎁Есть код?", "callback_data": "enter_promo"}, {"text": "💰зови друзей", "callback_data": "partner"}],
+        [{"text": "Каролина, помоги", "url": "https://t.me/ventura_sup"}, {"text": "О Ventura", "callback_data": "info"}],
+        [{"text": "👑 Админ панель", "callback_data": "admin_panel"}]
+    ]}
 
 def get_mysub_kb(status, uid_raw=""):
     kb = []
-    is_test_user = (uid_raw in TEST_USERS)
 
     # If no subscription ever, show trial
     if not status.get("has_sub"):
@@ -462,19 +425,19 @@ def get_mysub_kb(status, uid_raw=""):
 
     # Buy button
     if status.get("has_sub"):
-        buy_text = "✨ Полетели (купить)" if is_test_user else "💳 Докупить 30 дней (200 ₽)"
+        buy_text = "✨ Полетели (купить)"
         kb.append([{"text": buy_text, "callback_data": "buy"}])
     else:
-        buy_text = "✨ Полетели (купить)" if is_test_user else "💳 Оформить на месяц (200 ₽)"
+        buy_text = "✨ Полетели (купить)"
         kb.append([{"text": buy_text, "callback_data": "buy"}])
 
     if status.get("has_sub"):
-        key_text = "🔑 Мой ключ" if is_test_user else "🔑 Получить мой ключ"
-        dev_text = "📱 Устройства" if is_test_user else "📱 Мои устройства"
+        key_text = "🔑 Мой ключ"
+        dev_text = "📱 Устройства"
         kb.append([{"text": key_text, "callback_data": "get_key"}, {"text": dev_text, "callback_data": "my_devices"}])
-        server_text = "🌍 Серверы" if is_test_user else "🌍 Выбор серверов"
+        server_text = "🌍 Серверы"
         kb.append([{"text": server_text, "callback_data": "select_subfile"}])
-    sync_text = "🔄 Аккаунты" if is_test_user else "🔗 Синхронизация аккаунтов"
+    sync_text = "🔄 Аккаунты"
     kb.append([{"text": sync_text, "callback_data": "sync_menu"}])
     kb.append([{"text": "🔙 Назад", "callback_data": "back_main"}])
     return {"inline_keyboard": kb}
@@ -583,37 +546,11 @@ def main():
                         uid_raw = str(frm.get('id'))
                         uid = f"tg{uid_raw}"
                         status = get_sub_status(uid)
-                        is_test_user = (uid_raw in TEST_USERS)
 
-                        # New design for test user
-                        if is_test_user:
-                            msg = NEW_SUBSCRIPTION_MSG
-                            safe_edit(chat, cq["message"],
-                                text=msg, reply_markup=get_mysub_kb(status, uid_raw))
-                        else:
-                            msg = "<b>📱 Управление подпиской</b>\n\n"
-                            if status.get("has_sub"):
-                                exp = status.get("expires", 0)
-                                max_dev = status.get("max_devices", 5)
-                                msg += f"Лимит устройств: <b>{max_dev}</b>\n\n"
+                        msg = NEW_SUBSCRIPTION_MSG
+                        safe_edit(chat, cq["message"],
+                            text=msg, reply_markup=get_mysub_kb(status, uid_raw))
 
-                                if exp == 0:
-                                    msg += "Статус: <b>Бессрочно</b>\nОсталось дней: <b>∞</b>\n"
-                                else:
-                                    now = int(time.time())
-                                    if exp > now:
-                                        days = int((exp - now) / 86400)
-                                        date_str = time.strftime("%d.%m.%Y", time.gmtime(exp))
-                                        msg += f"Статус: <b>Активна</b>\nОсталось дней: <b>{days}</b>\nДействует до: <b>{date_str}</b>\n"
-                                    else:
-                                        date_str = time.strftime("%d.%m.%Y", time.gmtime(exp))
-                                        msg += f"Статус: <b>Истекла</b> ({date_str})\nОсталось дней: <b>0</b>\n"
-                            else:
-                                msg += "У вас пока нет активной подписки.\n"
-
-                            safe_edit(chat, cq["message"],
-                                text=msg, parse_mode="HTML", reply_markup=get_mysub_kb(status, uid_raw))
-                            
                     elif data == "select_subfile":
                         frm = cq.get("from", {})
                         uid = f"tg{frm.get('id')}"
@@ -741,21 +678,12 @@ def main():
                         username = frm.get("username", "")
                         url = issue_key(uid, username)
                         if url:
-                            # New design buttons for test user
-                            is_test_user = (uid_raw in TEST_USERS)
-                            kb_buttons = []
-                            if is_test_user:
-                                kb_buttons = [
-                                    [{"text": "Подключить", "url": url}],
-                                    [{"text": "Настройка iPhone", "callback_data": "setup_iphone"}],
-                                    [{"text": "Настройка Android", "callback_data": "setup_android"}],
-                                    [{"text": "Назад", "callback_data": "mysub_menu"}]
-                                ]
-                            else:
-                                kb_buttons = [
-                                    [{"text": "🚀 Подключить", "url": url}],
-                                    [{"text": "🔙 Назад", "callback_data": "mysub_menu"}]
-                                ]
+                            kb_buttons = [
+                                [{"text": "Подключить", "url": url}],
+                                [{"text": "Настройка iPhone", "callback_data": "setup_iphone"}],
+                                [{"text": "Настройка Android", "callback_data": "setup_android"}],
+                                [{"text": "Назад", "callback_data": "mysub_menu"}]
+                            ]
                             kb = {"inline_keyboard": kb_buttons}
                             safe_edit(chat, cq["message"],
                                 text=key_message(uid_raw), parse_mode="HTML",
@@ -766,84 +694,55 @@ def main():
                     elif data == "back_main":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw in TEST_USERS)
 
                         # Get subscription status
                         uid_for_api = f"tg{uid_raw}"
                         sub_details = get_subscription_details(uid_for_api)
 
-                        if is_test_user:
-                            # Determine which message to show based on subscription status
-                            if sub_details and sub_details.get("has_sub"):
-                                welcome_text = ACTIVE_SUBSCRIPTION_MSG.format(
-                                    days_left=sub_details["days_left"],
-                                    max_devices=sub_details["max_devices"],
-                                    end_date=sub_details["end_date_str"]
-                                )
-                            else:
-                                welcome_text = NO_SUBSCRIPTION_MSG
-                            safe_edit(chat, cq["message"], text=welcome_text, reply_markup=get_main_kb(uid_raw))
+                        # Determine which message to show based on subscription status
+                        if sub_details and sub_details.get("has_sub"):
+                            welcome_text = ACTIVE_SUBSCRIPTION_MSG.format(
+                                days_left=sub_details["days_left"],
+                                max_devices=sub_details["max_devices"],
+                                end_date=sub_details["end_date_str"]
+                            )
                         else:
-                            safe_edit(chat, cq["message"],
-                                text=WELCOME, parse_mode="HTML", reply_markup=get_main_kb(uid_raw))
+                            welcome_text = NO_SUBSCRIPTION_MSG
+                        safe_edit(chat, cq["message"], text=welcome_text, reply_markup=get_main_kb(uid_raw))
 
-                    # Admin panel handlers for test user only
+                    # Admin panel handlers
                     elif data == "admin_panel":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw in TEST_USERS)
-                        if is_test_user:
-                            safe_edit(chat, cq["message"], text=ADMIN_MSG, parse_mode="HTML", reply_markup=ADMIN_KB)
-                        else:
-                            api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
+                        safe_edit(chat, cq["message"], text=ADMIN_MSG, parse_mode="HTML", reply_markup=ADMIN_KB)
 
                     elif data == "admin_broadcast":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw in TEST_USERS)
-                        if is_test_user:
-                            msg = """📢 <b>Отправить сообщение всем пользователям</b>
+                        msg = """📢 <b>Отправить сообщение всем пользователям</b>
 
 Введите текст сообщения:
 (отправьте /cancel для отмены)"""
-                            kb = {"inline_keyboard": [[{"text": "❌ Отмена", "callback_data": "back_main"}]]}
-                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", reply_markup=kb)
-                            # Set flag for waiting broadcast message
-                            WAITING_FOR_BROADCAST[uid_raw] = True
-                        else:
-                            api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
+                        kb = {"inline_keyboard": [[{"text": "❌ Отмена", "callback_data": "back_main"}]]}
+                        safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", reply_markup=kb)
+                        WAITING_FOR_BROADCAST[uid_raw] = True
 
                     elif data == "admin_stop":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw in TEST_USERS)
-                        if is_test_user:
-                            # Here you would implement bot stop logic
-                            safe_edit(chat, cq["message"], text="⏹ Бот остановлен для всех пользователей", reply_markup=ADMIN_KB)
-                        else:
-                            api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
+                        safe_edit(chat, cq["message"], text="⏹ Бот остановлен для всех пользователей", reply_markup=ADMIN_KB)
 
                     elif data == "admin_start":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw in TEST_USERS)
-                        if is_test_user:
-                            # Here you would implement bot start logic
-                            api("sendMessage", chat_id=chat, text="▶️ Бот запущен для всех пользователей", reply_markup=ADMIN_KB)
-                        else:
-                            api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
+                        api("sendMessage", chat_id=chat, text="▶️ Бот запущен для всех пользователей", reply_markup=ADMIN_KB)
 
                     elif data == "admin_stats":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw in TEST_USERS)
-                        if is_test_user:
-                            # Получаем полную статистику
-                            full_stats = get_full_bot_stats()
-                            stats_msg = format_stats_message(full_stats)
-                            safe_edit(chat, cq["message"], text=stats_msg, parse_mode="HTML", reply_markup=ADMIN_KB)
-                        else:
-                            api("answerCallbackQuery", callback_query_id=cq["id"], text="Доступ запрещен", show_alert=True)
+                        full_stats = get_full_bot_stats()
+                        stats_msg = format_stats_message(full_stats)
+                        safe_edit(chat, cq["message"], text=stats_msg, parse_mode="HTML", reply_markup=ADMIN_KB)
 
                     elif data == "sync_menu":
                         frm = cq.get("from", {})
@@ -937,18 +836,10 @@ def main():
                         username = frm.get("username", "")
                         url = issue_trial(uid, username)
                         if url:
-                            # New design buttons for test user
-                            is_test_user = (uid_raw in TEST_USERS)
-                            if is_test_user:
-                                kb = {"inline_keyboard": [
-                                    [{"text": "Подключить", "url": url}],
-                                    [{"text": "Назад", "callback_data": "back_main"}]
-                                ]}
-                            else:
-                                kb = {"inline_keyboard": [
-                                    [{"text": "🚀 Подключить", "url": url}],
-                                    [{"text": "🔙 В меню", "callback_data": "back_main"}]
-                                ]}
+                            kb = {"inline_keyboard": [
+                                [{"text": "Подключить", "url": url}],
+                                [{"text": "Назад", "callback_data": "back_main"}]
+                            ]}
                             safe_edit(chat, cq["message"],
                                 text=key_message(uid_raw), parse_mode="HTML",
                                 disable_web_page_preview=True, reply_markup=kb)
@@ -958,12 +849,9 @@ def main():
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get('id'))
                         stats = get_ref_stats(uid_raw)
-                        is_test_user = (uid_raw in TEST_USERS)
 
-                        # New design for test user
-                        if is_test_user:
-                            ref_link = f"https://t.me/VenturaVpnRobot?start=ref_{uid_raw}"
-                            msg = """🤝 <b>Приводи друзей — получай бонусы!</b>
+                        ref_link = f"https://t.me/VenturaVpnRobot?start=ref_{uid_raw}"
+                        msg = """🤝 <b>Приводи друзей — получай бонусы!</b>
 
 Хочешь бесплатный VPN ещё дольше? Всё просто:
 
@@ -978,52 +866,11 @@ def main():
 🎁 Бонусов получено: 0 дней
 
 А если хочешь зарабатывать реальные деньги — пиши в поддержку, расскажем про партнёрку с выплатами 💰""".format(ref_link=ref_link, invited=stats.get("count", 0))
-                            kb = {"inline_keyboard": [
-                                [{"text": "Поддержка", "url": "https://t.me/ventura_sup"}],
-                                [{"text": "Назад", "callback_data": "back_main"}]
-                            ]}
-                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", reply_markup=kb)
-                        else:
-                            global BOT_USERNAME
-                            if BOT_USERNAME is None:
-                                try:
-                                    req = urllib.request.Request(f"{API}/getMe")
-                                    with urllib.request.urlopen(req, timeout=5) as r:
-                                        res = json.load(r)
-                                        if res.get("ok"):
-                                            BOT_USERNAME = res["result"]["username"]
-                                except:
-                                    BOT_USERNAME = "venturavpn_bot"
-
-                            ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{uid_raw}"
-
-                            msg = "🤝 <b>Партнерская программа</b>\n\n"
-                            msg += "Делитесь этой ссылкой с друзьями и получайте бонусы:\n"
-                            msg += f"<code>{ref_link}</code>\n\n"
-                            msg += f"👥 Приглашено: <b>{stats['count']}</b>\n"
-
-                            if stats.get("is_vip"):
-                                role = "Партнёр" if stats.get("is_worker") else "VIP-партнёр"
-                                pct_f = int(stats.get("pct_first", 0.20) * 100)
-                                pct_r = int(stats.get("pct_renew", 0.10) * 100)
-                                pct_m = int(stats.get("pct_mentor", 0.05) * 100)
-                                msg += f"Ваш статус: <b>{role}</b>\n"
-                                msg += f"Ваш процент: <b>{pct_f}%</b> (первая покупка) / <b>{pct_r}%</b> (продление)\n"
-                                if pct_m > 0:
-                                    msg += f"Менторский процент: <b>{pct_m}%</b>\n"
-                                msg += f"\n💰 Заработано всего: <b>{stats.get('total_earned', stats.get('earned_money', 0)):.2f} ₽</b>\n"
-                                msg += f"💳 Текущий баланс: <b>{stats.get('vip_balance', 0):.2f} ₽</b>\n"
-                                mentor_e = stats.get("mentor_earnings", 0)
-                                if mentor_e > 0:
-                                    msg += f"🤝 Менторские бонусы: <b>{mentor_e:.2f} ₽</b>\n"
-                                msg += f"\n<i>(Вы получаете {pct_f}% с первой покупки и {pct_r}% с продлений)</i>"
-                            else:
-                                msg += f"🎁 Получено: <b>{stats.get('earned_days', 0)}</b> бонусных дней\n\n"
-                                msg += "<i>(Вы и ваш друг получаете по +5 дней, когда он впервые оплачивает подписку)</i>\n\n"
-                                msg += "Хотите стать партнёром и получать деньги? Напишите в техподдержку."
-
-                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML",
-                                disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
+                        kb = {"inline_keyboard": [
+                            [{"text": "Поддержка", "url": "https://t.me/ventura_sup"}],
+                            [{"text": "Назад", "callback_data": "back_main"}]
+                        ]}
+                        safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", reply_markup=kb)
                     elif data == "buy":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get('id'))
@@ -1052,9 +899,7 @@ def main():
                     elif data == "info":
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw in TEST_USERS)
-                        if is_test_user:
-                            msg = """<b>VenturaVPN — интернет без границ.</b>
+                        msg = """<b>VenturaVPN — интернет без границ.</b>
 
 VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис для тех, кто ценит свободу в сети. Мы используем <b>качественные серверы</b> и собственные <b>белые IP-адреса</b>, чтобы обеспечить стабильное соединение, высокую скорость и минимальные задержки.
 
@@ -1070,35 +915,24 @@ VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис
 📱 <b>Поддержка всех популярных устройств</b>
 
 <i>VenturaVPN — когда нужен интернет таким, каким он должен быть.</i>"""
-                            # Редактируем сообщение вместо создания нового
-                            kb = {"inline_keyboard": [[{"text": "🔙 Назад", "callback_data": "info_back"}]]}
-                            safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=kb)
-                        else:
-                            msg = "ℹ️ <b>Информация</b>\n\n<a href='https://venturavpn.club/polzovatelskoe-soglashenie.html'>📄 Соглашение</a>\n<a href='https://venturavpn.club/politika-konfidencialnosti.html'>🔒 Конфиденциальность</a>"
+                        kb = {"inline_keyboard": [[{"text": "🔙 Назад", "callback_data": "info_back"}]]}
+                        safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=kb)
                             safe_edit(chat, cq["message"], text=msg, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
 
                     elif data == "info_back":
-                        # Возвращаемся к главному меню - редактируем сообщение
                         frm = cq.get("from", {})
                         uid_raw = str(frm.get("id"))
-                        is_test_user = (uid_raw in TEST_USERS)
 
-                        if is_test_user:
-                            STICKER_ID = "CAACAgEAAxkBAAEF3HhqbhZvJWm-aqcFrnAy9S2lK1Xa4gACggoAApH6aEfLT1-_Y898yj0E"
-                            # Нельзя отправить стикер через edit, поэтому просто показываем текст с клавиатурой
-                            sub_details = get_subscription_details(f"tg{uid_raw}")
-                            if sub_details and sub_details.get("has_sub"):
-                                welcome_text = ACTIVE_SUBSCRIPTION_MSG.format(
-                                    days_left=sub_details["days_left"],
-                                    max_devices=sub_details["max_devices"],
-                                    end_date=sub_details["end_date_str"]
-                                )
-                            else:
-                                welcome_text = NO_SUBSCRIPTION_MSG
-                            safe_edit(chat, cq["message"], text=welcome_text, reply_markup=get_main_kb(uid_raw))
+                        sub_details = get_subscription_details(f"tg{uid_raw}")
+                        if sub_details and sub_details.get("has_sub"):
+                            welcome_text = ACTIVE_SUBSCRIPTION_MSG.format(
+                                days_left=sub_details["days_left"],
+                                max_devices=sub_details["max_devices"],
+                                end_date=sub_details["end_date_str"]
+                            )
                         else:
-                            PHOTO_URL = "https://venturavpn.club/bot-banner.jpg"
-                            safe_edit(chat, cq["message"], text=WELCOME, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
+                            welcome_text = NO_SUBSCRIPTION_MSG
+                        safe_edit(chat, cq["message"], text=welcome_text, reply_markup=get_main_kb(uid_raw))
 
                     elif data == "setup_iphone":
                         frm = cq.get("from", {})
@@ -1172,34 +1006,25 @@ VenturaVPN — это <i>быстрый и надёжный</i> VPN-сервис
                         uid_raw = str(msg["from"]["id"])
                         add_referral(uid_raw, referrer)
 
-                    # Check if test user for new design
-                    is_test_user = (uid_raw in TEST_USERS)
-
                     # Get subscription status
                     uid_for_api = f"tg{uid_raw}"
                     sub_details = get_subscription_details(uid_for_api)
 
-                    if is_test_user:
-                        # New design: send sticker first, then message
-                        STICKER_ID = "CAACAgEAAxkBAAEF3HhqbhZvJWm-aqcFrnAy9S2lK1Xa4gACggoAApH6aEfLT1-_Y898yj0E"
-                        api("sendSticker", chat_id=chat_id, sticker=STICKER_ID)
+                    # Send sticker first for all users
+                    STICKER_ID = "CAACAgEAAxkBAAEF3HhqbhZvJWm-aqcFrnAy9S2lK1Xa4gACggoAApH6aEfLT1-_Y898yj0E"
+                    api("sendSticker", chat_id=chat_id, sticker=STICKER_ID)
 
-                        # Determine which message to show based on subscription status
-                        if sub_details and sub_details.get("has_sub"):
-                            # User has active subscription
-                            welcome_text = ACTIVE_SUBSCRIPTION_MSG.format(
-                                days_left=sub_details["days_left"],
-                                max_devices=sub_details["max_devices"],
-                                end_date=sub_details["end_date_str"]
-                            )
-                        else:
-                            # User has no subscription or it expired
-                            welcome_text = NO_SUBSCRIPTION_MSG
-
-                        api("sendMessage", chat_id=chat_id, text=welcome_text, reply_markup=get_main_kb(uid_raw))
+                    # Determine which message to show based on subscription status
+                    if sub_details and sub_details.get("has_sub"):
+                        welcome_text = ACTIVE_SUBSCRIPTION_MSG.format(
+                            days_left=sub_details["days_left"],
+                            max_devices=sub_details["max_devices"],
+                            end_date=sub_details["end_date_str"]
+                        )
                     else:
-                        PHOTO_URL = "https://venturavpn.club/bot-banner.jpg"
-                        res = api("sendPhoto", chat_id=chat_id, photo=PHOTO_URL, caption=WELCOME, parse_mode="HTML", reply_markup=get_main_kb(uid_raw))
+                        welcome_text = NO_SUBSCRIPTION_MSG
+
+                    api("sendMessage", chat_id=chat_id, text=welcome_text, reply_markup=get_main_kb(uid_raw))
                         if not res.get("ok"):
                             api("sendMessage", chat_id=chat_id, text=WELCOME, parse_mode="HTML", disable_web_page_preview=True, reply_markup=get_main_kb(uid_raw))
                 elif text.startswith("/find"):
